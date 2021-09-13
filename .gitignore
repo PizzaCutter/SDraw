@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+# Rider
+*.idea
+
+# Mac OS specific
+*.DS_Store
