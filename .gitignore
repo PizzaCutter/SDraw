@@ -31,6 +31,11 @@
 *.out
 *.app
 
+# Visual studio
+*.vs
+*Debug
+*.vcxproj*
+
 # Rider
 *.idea
 
