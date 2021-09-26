@@ -1,10 +1,11 @@
 #pragma once
 
 #define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
+#include <string>
 
-static constexpr int Width = 160;
-static constexpr int Height = 120;
-static constexpr int PixelScale = 5;
+static constexpr int Width = 1280; // 160
+static constexpr int Height = 720; // 120
+static constexpr int PixelScale = 1;
 
 // Attempt at building small game/rendering framework based on immediate2D https://github.com/npiegdon/immediate2d
 using Color = unsigned int;
@@ -37,6 +38,17 @@ static const Color Yellow =       MakeColor(255, 255,  85);
 static const Color White =        MakeColor(255, 255, 255);
 
 void Clear(Color clearColor = Black);
+void SetPixel(float x, float y, Color c);
 void SetPixel(int x, int y, Color c);
+void DrawRectangle(float x, float y, float width, float height, Color c);
 void DrawRectangle(int x, int y, int width, int height, Color c);
+
+// INPUT
+bool IsKeyDown(char key);
+int GetMouseX();
+int GetMouseY();
+// ~INPUT
+
+void DrawString(int x, int y, const std::string& s, const Color color, int size);
+
 
