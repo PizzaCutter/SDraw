@@ -1,16 +1,18 @@
 #pragma once
 
+#include "Typedefs.h"
+
 #define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
 #include <string>
 
-static constexpr int Width = 1280; // 160
-static constexpr int Height = 720; // 120
-static constexpr int PixelScale = 1;
+static constexpr int32 Width = 1280; // 160
+static constexpr int32 Height = 720; // 120
+static constexpr int32 PixelScale = 1;
 
 // Attempt at building small game/rendering framework based on immediate2D https://github.com/npiegdon/immediate2d
 using Color = unsigned int;
 
-inline Color MakeColor(int r, int g, int b)
+inline Color MakeColor(int32 r, int32 g, int32 b)
 {
 	return (0xFF << 24) // pack alpha in last 8 bits but just ignore for now
 			| ((r & 0xFF) << 16) // pack red value in 16-24 bits
@@ -39,16 +41,18 @@ static const Color White =        MakeColor(255, 255, 255);
 
 void Clear(Color clearColor = Black);
 void SetPixel(float x, float y, Color c);
-void SetPixel(int x, int y, Color c);
+void SetPixel(int32 x, int32 y, Color c);
 void DrawRectangle(float x, float y, float width, float height, Color c);
-void DrawRectangle(int x, int y, int width, int height, Color c);
+void DrawRectangle(int32 x, int32 y, int32 width, int32 height, Color c);
+void DrawLine(int32 startX, int32 startY, int32 endX, int32 endY, Color c);
 
 // INPUT
 bool IsKeyDown(char key);
-int GetMouseX();
-int GetMouseY();
+int32 GetMouseX();
+int32 GetMouseY();
 // ~INPUT
 
-void DrawString(int x, int y, const std::string& s, const Color color, int size);
+int32 GetStringWidth(const std::string& s);
+void DrawString(int32 x, int32 y, const std::string& s, const Color color, int32 size);
 
 

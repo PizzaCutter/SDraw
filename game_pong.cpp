@@ -3,6 +3,7 @@
 #include <iostream>
 #include <algorithm>
 
+// TODO[rsmekens]: hot variable reload system? (handmade hero has a video on this)
 static float paddleMovementTimeFromTopToBottom = 3.f;
 static float paddleHeightScreenPercentage = 0.1f;
 static float paddleWidthScreenPercentage = 0.015f;
@@ -18,18 +19,38 @@ static float middleLineGridPointOffsetPercentage = 0.075f;
 static float scoreXOffsetPercentage = 0.05f;
 static float scoreYOffsetPercentage = 0.025f;
 
+static float ballIdleTimer = 1.5f;
+
+static int32 requiredScoreToWin = 3;
+
+// TODO[rsmekens]: need to figure out a better way to create a mapping
 #define ARROW_UP 0x26
 #define ARROW_DOWN 0x28
+#define SPACEBAR 0x20
 
 enum class Direction
 {
     None, Up, Down
 };
 
+// TODO[rsmekens]: move this into general math library?
 struct Vector2D
 {
     float x;
     float y;
+
+    void Normalize()
+    {
+        float size = std::sqrtf(x*x + y*y);
+        if (size == 0.0f)
+        {
+            x = 0.0f;
+            y = 0.0f;
+        }
+        
+        x /= size;
+        y /= size;
+    }
 };
 
 struct Paddle
@@ -67,6 +88,7 @@ struct Ball
     Vector2D size;
     Vector2D direction;
     float speed;
+    float idleTimer;
 
     bool isOverlapping;
 
@@ -84,6 +106,12 @@ struct Ball
 
     void UpdatePosition(float deltaTime, const Paddle& leftPaddle, const Paddle& rightPaddle)
     {
+        if (idleTimer <= ballIdleTimer)
+        {
+            idleTimer += deltaTime;
+            return;     
+        }
+        
         isOverlapping = false;
         
         position.x += direction.x * speed * deltaTime;
@@ -108,16 +136,6 @@ struct Ball
         {
             direction.x *= -1.0f;
         }
-
-        if (position.x <= 0)
-        {
-            direction.x *= -1.0f;
-            position.x = 0;
-        }else if (position.x >= Width - size.x)
-        {
-            direction.x *= -1.0f;
-            position.x = Width - size.x;
-        }
     }
 
     void Draw(float deltaTime)
@@ -127,10 +145,18 @@ struct Ball
     }
 };
 
+bool isInMenu = true;
 Paddle paddles[2];
 Ball ball;
 
-void Start()
+// TODO[rsmekens]: move this into general math library?
+float GetRandomNormalizedFloat()
+{
+    float randomFloat = static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX);;
+    return (randomFloat * 2)- 1.0f;
+}
+
+void ResetGame()
 {
     const float paddleOffset = Width * paddleBorderOffsetScreenPercentage;
     const float paddleHeight = Height * paddleHeightScreenPercentage;
@@ -139,28 +165,50 @@ void Start()
     
     const float ballSize = Width * ballSizeScreenPercentage;
     const float ballSpeed = (Width - ballSize) / minBallMovementTimeFromLeftToRight;
-    
-    Paddle leftPaddle = {};
+
+    Paddle& leftPaddle = paddles[0];
     leftPaddle.size = Vector2D{paddleWidth, paddleHeight};
     leftPaddle.position.x = paddleOffset;
     leftPaddle.position.y = Height / 2.0f - (leftPaddle.size.y / 2.0f);
     leftPaddle.speed = paddleSpeed;
-    paddles[0] = leftPaddle;
-    
-    Paddle rightPaddle = {};
+    leftPaddle.direction = Direction::None;
+
+    Paddle& rightPaddle = paddles[1];
     rightPaddle.size = Vector2D{paddleWidth, paddleHeight};
     rightPaddle.position.x = Width - rightPaddle.size.x - paddleOffset;
     rightPaddle.position.y = Height / 2.0f - (rightPaddle.size.y / 2.0f);
     rightPaddle.speed = paddleSpeed;
+    rightPaddle.direction = Direction::None;
+    
+    ball.size = Vector2D{ballSize, ballSize};
+    const float halfBallSize = ballSize / 2.0f; 
+    ball.position = Vector2D{(Width / 2) - halfBallSize, (Height / 2) - halfBallSize};
+    ball.direction = Vector2D{GetRandomNormalizedFloat(), GetRandomNormalizedFloat()};
+    ball.direction.Normalize();
+    ball.speed = ballSpeed;
+    ball.idleTimer = 0.0f; 
+}
+
+void Start()
+{
+    Paddle leftPaddle = {};
+    paddles[0] = leftPaddle;
+    
+    Paddle rightPaddle = {};
     paddles[1] = rightPaddle;
 
     ball = {};
-    ball.position = Vector2D{Width / 2, Height / 2};
-    ball.direction = Vector2D{0.5f, 0.5f};
-    ball.size = Vector2D{ballSize, ballSize};
-    ball.speed = ballSpeed;
+
+    ResetGame();
 }
 
+void RenderGrid()
+{
+    DrawLine(Width / 2, 0, Width / 2, Height, Red);
+    DrawLine(0, Height / 2, Width, Height / 2, Green);
+}
+
+// TODO[rsmekens]: move this into engine as every game probably wants this
 void DrawGridLine()
 {
     float gridPointSize = Width * middleLineGridPointSizePercentage;
@@ -174,10 +222,72 @@ void DrawGridLine()
     }
 }
 
+void CheckWinCondition()
+{
+    Paddle& leftPaddle = paddles[0];
+    Paddle& rightPaddle = paddles[1];
+    
+    const float winOffset = 5;
+    if (ball.position.x + ball.size.x <= -winOffset)
+    {
+        leftPaddle.score++;
+        ResetGame();
+    }
+    if (ball.position.x >= Width + winOffset)
+    {
+        rightPaddle.score++;
+        ResetGame(); 
+    }
+
+    if (leftPaddle.score >= requiredScoreToWin)
+    {
+        isInMenu = true;    
+    }
+    if (rightPaddle.score >= requiredScoreToWin)
+    {
+        isInMenu = true; 
+    }
+}
+
+void UpdateMenu(float deltaTime)
+{
+    if (IsKeyDown(SPACEBAR))
+    {
+        Paddle& leftPaddle = paddles[0];
+        Paddle& rightPaddle = paddles[1];
+        leftPaddle.score = 0;
+        rightPaddle.score = 0;
+        isInMenu = false;        
+    }
+}
+
+void RenderMenu(float deltaTime)
+{
+    Clear();
+
+    RenderGrid();
+    
+    const int32 titleTextSize = 30;
+    const std::string gameTitle = "PONG";
+    {
+        const int32 textWidth = (GetStringWidth(gameTitle) * titleTextSize) / 2;
+        int32 xPos = Width / 2 - textWidth;
+        int32 yPos = static_cast<int>(static_cast<float>(Height) * 0.1f);
+        DrawString(xPos, yPos, gameTitle, White, titleTextSize);
+    }
+
+    const int32 startMessageTextSize = 10;
+    const std::string other = "PRESS SPACEBAR TO START";
+    {
+        const int32 textWidth = (GetStringWidth(other) * startMessageTextSize) / 2;
+        int32 xPos = Width / 2 - textWidth;
+        int32 yPos = static_cast<int>(static_cast<float>(Height) * 0.5f);
+        DrawString(xPos, yPos, other, White, startMessageTextSize);
+    }
+}
+
 void UpdateGame(float deltaTime)
 {
-    Clear(Black);
-
     Paddle& leftPaddle = paddles[0];
     Paddle& rightPaddle = paddles[1];
     
@@ -195,6 +305,10 @@ void UpdateGame(float deltaTime)
     {
         rightPaddle.direction = Direction::Down;
     }
+    if (IsKeyDown('R'))
+    {
+        ResetGame();
+    }
     
     for (Paddle& paddle : paddles)
     {
@@ -203,19 +317,55 @@ void UpdateGame(float deltaTime)
 
     ball.UpdatePosition(deltaTime, paddles[0], paddles[1]);
 
-    // Rendering 
+    CheckWinCondition();
+}
+
+void RenderGame(float deltaTime)
+{
+    Clear(Black);
+    
+    RenderGrid();
     DrawGridLine();
+    
     for (Paddle& paddle : paddles)
     {
         paddle.Draw(deltaTime);
     }
-    
-    leftPaddle = paddles[0];
-    
-    const float xOffset = Width * scoreXOffsetPercentage;
-    const float yOffset = Height * scoreYOffsetPercentage;
-    DrawString((Width / 2) - xOffset, yOffset, std::to_string(leftPaddle.score), LightGray, 10);
-    DrawString((Width / 2) + xOffset, yOffset, std::to_string(rightPaddle.score), LightGray, 10);
+
+    // Render score
+    {
+        Paddle& leftPaddle = paddles[0];
+        Paddle& rightPaddle = paddles[1];
+        const float xOffset = Width * scoreXOffsetPercentage;
+        const float yOffset = Height * scoreYOffsetPercentage;
+        
+        const int32 textSize = 10;
+        // Left Paddle Score
+        {
+            const std::string scoreAsString = std::to_string(leftPaddle.score);
+            const int32 textWidth = GetStringWidth(scoreAsString) * textSize;
+            DrawString(static_cast<int32>((Width / 2) - xOffset), static_cast<int32>(yOffset), scoreAsString, White, textSize);
+        }
+        // Right Paddle Score
+        {
+            const std::string scoreAsString = std::to_string(rightPaddle.score);
+            const int32 textWidth = GetStringWidth(scoreAsString) * textSize;
+            DrawString(static_cast<int32>((Width / 2) + xOffset - textWidth), static_cast<int32>(yOffset), scoreAsString, White, textSize);
+        }
+    }
    
-    ball.Draw(deltaTime);
+    ball.Draw(deltaTime); 
+}
+
+void Tick(float deltaTime)
+{
+    if (isInMenu)
+    {
+        UpdateMenu(deltaTime);
+        RenderMenu(deltaTime);
+    }else
+    {
+        UpdateGame(deltaTime);
+        RenderGame(deltaTime);
+    }
 }

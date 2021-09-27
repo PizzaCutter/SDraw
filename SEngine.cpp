@@ -19,7 +19,7 @@ using namespace std::chrono;
 #define MAX_LOADSTRING 100
 
 void Start();
-void UpdateGame(float deltaTime);
+void Tick(float deltaTime);
 
 static unique_ptr<Gdiplus::Bitmap> bitmap;
 static unique_ptr<Gdiplus::Graphics> graphics;
@@ -58,10 +58,16 @@ void DrawRectangle(float x, float y, float width, float height, Color c)
 	DrawRectangle(static_cast<int>(std::round(x)), static_cast<int>(std::round(y)), static_cast<int>(std::round(width)), static_cast<int>(std::round(height)), c);	
 }
 
-void DrawRectangle(int x, int y, int width, int height, Color c)
+void DrawRectangle(int32 x, int32 y, int32 width, int32 height, Color c)
 {
 	Gdiplus::SolidBrush solidBrush(c);
 	graphics->FillRectangle(&solidBrush, x, y, width, height);
+}
+
+void DrawLine(int32 startX, int32 startY, int32 endX, int32 endY, Color c)
+{
+	Gdiplus::Pen pen(c);
+	graphics->DrawLine(&pen, startX, startY, endX, endY);
 }
 
 bool IsKeyDown(char key)
@@ -118,7 +124,7 @@ int APIENTRY wWinMain(HINSTANCE hInstance,
 	windowClass.lpfnWndProc = WndProc;
 	windowClass.hInstance = hInstance;
 	//windowClass.hIcon;
-	windowClass.lpszClassName = L"HandmadeHeroWindowClass";
+	windowClass.lpszClassName = L"PONG - SDRAW";
 	if (!RegisterClass(&windowClass)) return 1;
 
 	const DWORD style = WS_OVERLAPPED | WS_SYSMENU | WS_CAPTION;
@@ -127,7 +133,7 @@ int APIENTRY wWinMain(HINSTANCE hInstance,
 	AdjustWindowRect(&r, style, FALSE);
 	
 	//HWND wnd = CreateWindowEx(0, wdc, style, CW_USEDEFAULT, CW_USEDEFAULT, r.right - r.left, r.bottom - r.top, nullptr, nullptr, hInstance, nullptr);
-	HWND window = CreateWindowEx(0, windowClass.lpszClassName, L"Handmade Hero",
+	HWND window = CreateWindowEx(0, windowClass.lpszClassName, L"PONG - SDRAW",
 									WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT,
 									r.right - r.left, r.bottom - r.top, 0, 0, hInstance, 0);
 	if (window == nullptr) return 1;
@@ -173,7 +179,7 @@ int APIENTRY wWinMain(HINSTANCE hInstance,
 		
 		if (duration > 16ms)
 		{
-			UpdateGame(f_secs.count());
+			Tick(f_secs.count());
 			InvalidateRect(window, nullptr, false);
 			
 			inputBuffer.clear();
@@ -271,13 +277,15 @@ static const unsigned int Font[128] = {
 	0x300008BF, 0x400F662E, 0x300068BF, 0x300026B2, 0x300007E1, 0x30007E1F, 0x30003E0F, 0x50F8320F, 0x30006C9B, 0x30000F83, 0x30004EB9, 0x30004764, 0x1000001F, 0x30001371, 0x50441044, 0x00000000,
 };
 
-int DrawCharacter(int left, int top, char charToDraw, Color color, int charIndex, int size)
+int32 DrawCharacter(int32 left, int32 top, char charToDraw, Color color, int32 size)
 {
 	unsigned int glyph = Font[charToDraw];
 	int width = glyph >> 28;
 
+	int tempX = 0;
 	for (int x = left; x < left + width; x++)
 	{
+		int tempY = 0;
 		for (int y = top; y < top + 5; y++)
 		{
 			if ((glyph & 1) == 1)
@@ -288,23 +296,38 @@ int DrawCharacter(int left, int top, char charToDraw, Color color, int charIndex
 				}
 				else
 				{
-					DrawRectangle(x * size, y * size, size, size, color);
+					DrawRectangle(left + (tempX * size), top + (tempY * size), size, size, color);
 				}
 			}
 
 			glyph = glyph >> 1;
+			tempY++;
 		}
+		tempX++;
 	}
 	
 	return width;
 }
 
-void DrawString(int x, int y, const std::string& s, const Color color, int size)
+int32 GetStringWidth(const std::string& s)
+{
+	int32 width = 0;
+	for (char c : s)
+	{
+		unsigned int glyph = Font[c];
+		width += glyph >> 28;
+	}
+	return width;	
+}
+
+// TODO[rsmekens]: add option for alignment mode (left, right, center)
+void DrawString(int32 x, int32 y, const std::string& s, const Color color, int32 size)
 {
 	int charIndex = 0;
 	for (char c : s)
 	{
-		x += DrawCharacter(x / size, y / size, c, color, charIndex, size) + 1;
+		int32 characterWidth = DrawCharacter(x, y, c, color, size);
+		x += (characterWidth * size) + size * 0.5f;
 		charIndex++;
 	}
 }
