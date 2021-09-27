@@ -191,6 +191,8 @@ void ResetGame()
 
 void Start()
 {
+    SetApplicationName("PONG");
+    
     Paddle leftPaddle = {};
     paddles[0] = leftPaddle;
     

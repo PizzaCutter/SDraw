@@ -52,6 +52,7 @@ int32 GetMouseX();
 int32 GetMouseY();
 // ~INPUT
 
+void SetApplicationName(const std::string& newApplicationName);
 int32 GetStringWidth(const std::string& s);
 void DrawString(int32 x, int32 y, const std::string& s, const Color color, int32 size);
 

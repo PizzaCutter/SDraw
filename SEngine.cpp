@@ -9,6 +9,8 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <iomanip>
+#include <sstream>
 #include <vector>
 
 #include <windowsx.h>
@@ -25,6 +27,10 @@ static unique_ptr<Gdiplus::Bitmap> bitmap;
 static unique_ptr<Gdiplus::Graphics> graphics;
 static unique_ptr<Gdiplus::Bitmap> bitmapOther;
 static unique_ptr<Gdiplus::Graphics> graphicsOther;
+static std::string applicationName = "SDraw Application";
+
+static bool bLockFrameRate = false;
+static uint32 maxFrameRate = 120;
 
 static vector<char> inputBuffer;
 static vector<char> keysDown;
@@ -92,6 +98,11 @@ int GetMouseY()
 	return mouseY;
 }
 
+void SetApplicationName(const std::string& newApplicationName)
+{
+	applicationName = newApplicationName;
+}
+
 void AddKeyDown(char key)
 {
 	if (!IsKeyDown(key))
@@ -124,7 +135,7 @@ int APIENTRY wWinMain(HINSTANCE hInstance,
 	windowClass.lpfnWndProc = WndProc;
 	windowClass.hInstance = hInstance;
 	//windowClass.hIcon;
-	windowClass.lpszClassName = L"PONG - SDRAW";
+	windowClass.lpszClassName = L"PONG";
 	if (!RegisterClass(&windowClass)) return 1;
 
 	const DWORD style = WS_OVERLAPPED | WS_SYSMENU | WS_CAPTION;
@@ -133,10 +144,12 @@ int APIENTRY wWinMain(HINSTANCE hInstance,
 	AdjustWindowRect(&r, style, FALSE);
 	
 	//HWND wnd = CreateWindowEx(0, wdc, style, CW_USEDEFAULT, CW_USEDEFAULT, r.right - r.left, r.bottom - r.top, nullptr, nullptr, hInstance, nullptr);
-	HWND window = CreateWindowEx(0, windowClass.lpszClassName, L"PONG - SDRAW",
+	HWND window = CreateWindowEx(0, windowClass.lpszClassName, L"Window Name - SDRAW",
 									WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT,
 									r.right - r.left, r.bottom - r.top, 0, 0, hInstance, 0);
 	if (window == nullptr) return 1;
+
+	
 
 	// Initialize GDI+.
 	ULONG_PTR gdiplusToken;
@@ -168,26 +181,35 @@ int APIENTRY wWinMain(HINSTANCE hInstance,
 		}
 
 		auto now = high_resolution_clock::now();
-		auto duration = now - lastDraw;
-		auto i_millis = std::chrono::duration_cast<std::chrono::milliseconds>(duration);
-		auto f_secs = std::chrono::duration_cast<std::chrono::duration<float>>(duration);
-		auto fps = (1.0f / (float)i_millis.count()) * 1000.0f;
+		duration<float, std::milli> f_millis = now - lastDraw; 
+		auto f_secs = std::chrono::duration_cast<duration<float>>(f_millis);
+		auto fps = (1.0f / (float)f_millis.count()) * 1000.0f;
+
 		
 		// std::cout << "Milli: " << i_millis.count() << '\n';
 		// std::cout << "Sec: " << f_secs.count() << '\n';
 		// std::cout << "FPS: " << fps << '\n';
-		
-		if (duration > 16ms)
+
+		float targetMs = (1.0f / static_cast<float>(maxFrameRate) * 1000);
+		if (bLockFrameRate && f_millis < duration<double, milli>(targetMs))
 		{
+			continue;	
+		}else
+		{
+			std::stringstream stream;
+			stream << applicationName;
+			stream << std::fixed << std::setprecision(3) << " | Ms: " << f_millis.count();
+			stream << std::fixed << std::setprecision(2) << " - FPS: " << fps;
+			stream << std::fixed << std::setprecision(3) << " - Delta: " << f_secs.count();
+			const std::string appName = stream.str(); 
+			SetWindowText(window, std::wstring(appName.begin(), appName.end()).c_str());
+		
 			Tick(f_secs.count());
 			InvalidateRect(window, nullptr, false);
-			
+	
 			inputBuffer.clear();
 
-			lastDraw = now;
-		}//else
-		{
-			//std::this_thread::sleep_for(1ms);
+			lastDraw = now;	
 		}
 	}
 	
@@ -327,7 +349,7 @@ void DrawString(int32 x, int32 y, const std::string& s, const Color color, int32
 	for (char c : s)
 	{
 		int32 characterWidth = DrawCharacter(x, y, c, color, size);
-		x += (characterWidth * size) + size * 0.5f;
+		x += (characterWidth * size) + static_cast<int32>(static_cast<float>(size) * 0.5f);
 		charIndex++;
 	}
 }
