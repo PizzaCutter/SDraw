@@ -1,13 +1,14 @@
 #pragma once
 
+#include "SMath.h"
 #include "Typedefs.h"
 
 #define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
 #include <string>
 
-static constexpr int32 Width = 1280; // 160
-static constexpr int32 Height = 720; // 120
-static constexpr int32 PixelScale = 1;
+static constexpr int32 Width = 160; // 160
+static constexpr int32 Height = 120; // 120
+static constexpr int32 PixelScale = 4;
 
 // Attempt at building small game/rendering framework based on immediate2D https://github.com/npiegdon/immediate2d
 using Color = unsigned int;
@@ -40,9 +41,10 @@ static const Color Yellow =       MakeColor(255, 255,  85);
 static const Color White =        MakeColor(255, 255, 255);
 
 void Clear(Color clearColor = Black);
-void SetPixel(float x, float y, Color c);
+void RenderGrid();
+void SetPixel(Vector2D pos, Color c);
 void SetPixel(int32 x, int32 y, Color c);
-void DrawRectangle(float x, float y, float width, float height, Color c);
+void DrawRectangle(Vector2D pos, Vector2D size, Color c);
 void DrawRectangle(int32 x, int32 y, int32 width, int32 height, Color c);
 void DrawLine(int32 startX, int32 startY, int32 endX, int32 endY, Color c);
 
@@ -52,8 +54,15 @@ int32 GetMouseX();
 int32 GetMouseY();
 // ~INPUT
 
+// APPLICATION
 void SetApplicationName(const std::string& newApplicationName);
+// ~APPLICATION
+
+// RENDERING UI 
+enum Alignment { Left, Right, Center };
 int32 GetStringWidth(const std::string& s);
-void DrawString(int32 x, int32 y, const std::string& s, const Color color, int32 size);
+void DrawString(Vector2D pos, const std::string& s, Alignment alignment, Color color, int32 size);
+void DrawString(int32 x, int32 y, const std::string& s, Alignment alignment, Color color, int32 size);
+// ~RENDERING UI
 
 

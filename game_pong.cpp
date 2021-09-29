@@ -1,16 +1,15 @@
 #include "SEngine.h"
+#include "SMath.h"
 
 #include <iostream>
 #include <algorithm>
 
-// TODO[rsmekens]: hot variable reload system? (handmade hero has a video on this)
 static float paddleMovementTimeFromTopToBottom = 3.f;
 static float paddleHeightScreenPercentage = 0.1f;
 static float paddleWidthScreenPercentage = 0.015f;
 static float paddleBorderOffsetScreenPercentage = 0.02f;
 
 static float minBallMovementTimeFromLeftToRight = 5.0f;
-static float maxBallMovementTimeFromLeftToRight = 2.0f;
 static float ballSizeScreenPercentage = 0.01f;
 
 static float middleLineGridPointSizePercentage = 0.01f;
@@ -23,7 +22,10 @@ static float ballIdleTimer = 1.5f;
 
 static int32 requiredScoreToWin = 3;
 
-// TODO[rsmekens]: need to figure out a better way to create a mapping
+static float titleSizeScreenPercentage = 0.03f;
+static float startGameMessageScreenPercentage = 0.01f;
+static float scoreScreenPercentage = 0.01f;
+
 #define ARROW_UP 0x26
 #define ARROW_DOWN 0x28
 #define SPACEBAR 0x20
@@ -31,26 +33,6 @@ static int32 requiredScoreToWin = 3;
 enum class Direction
 {
     None, Up, Down
-};
-
-// TODO[rsmekens]: move this into general math library?
-struct Vector2D
-{
-    float x;
-    float y;
-
-    void Normalize()
-    {
-        float size = std::sqrtf(x*x + y*y);
-        if (size == 0.0f)
-        {
-            x = 0.0f;
-            y = 0.0f;
-        }
-        
-        x /= size;
-        y /= size;
-    }
 };
 
 struct Paddle
@@ -78,7 +60,7 @@ struct Paddle
 
     void Draw(float deltaTime)
     {
-        DrawRectangle(position.x, position.y, size.x, size.y, White);
+        DrawRectangle(position, size, White);
     }
 };
 
@@ -141,7 +123,7 @@ struct Ball
     void Draw(float deltaTime)
     {
         Color colorToUse = isOverlapping ? Red : White;
-        DrawRectangle(position.x, position.y, size.x, size.y, colorToUse);
+        DrawRectangle(position, size, colorToUse);
     }
 };
 
@@ -204,13 +186,6 @@ void Start()
     ResetGame();
 }
 
-void RenderGrid()
-{
-    DrawLine(Width / 2, 0, Width / 2, Height, Red);
-    DrawLine(0, Height / 2, Width, Height / 2, Green);
-}
-
-// TODO[rsmekens]: move this into engine as every game probably wants this
 void DrawGridLine()
 {
     float gridPointSize = Width * middleLineGridPointSizePercentage;
@@ -219,7 +194,10 @@ void DrawGridLine()
     float yPos = 0.0f;
     while (yPos <= Height)
     {
-        DrawRectangle((Width / 2.f) - gridPointSize / 2.f, yPos, gridPointSize, gridPointSize, White);
+        DrawRectangle(
+            Vector2D{(Width / 2.f) - gridPointSize / 2.f, yPos },
+           Vector2D{gridPointSize, gridPointSize}, White);
+        
         yPos += gridPointOffset; 
     }
 }
@@ -266,25 +244,41 @@ void UpdateMenu(float deltaTime)
 void RenderMenu(float deltaTime)
 {
     Clear();
-
-    RenderGrid();
+    //RenderGrid();
     
-    const int32 titleTextSize = 30;
+    const int32 titleTextSize = static_cast<int32>(Width * titleSizeScreenPercentage);
     const std::string gameTitle = "PONG";
     {
-        const int32 textWidth = (GetStringWidth(gameTitle) * titleTextSize) / 2;
-        int32 xPos = Width / 2 - textWidth;
-        int32 yPos = static_cast<int>(static_cast<float>(Height) * 0.1f);
-        DrawString(xPos, yPos, gameTitle, White, titleTextSize);
+        const int32 xPos = Width / 2;
+        const int32 yPos = static_cast<int32>(static_cast<float>(Height) * 0.1f);
+        DrawString(xPos, yPos, gameTitle, Center, White, titleTextSize);
     }
 
-    const int32 startMessageTextSize = 10;
-    const std::string other = "PRESS SPACEBAR TO START";
+    const int32 startMessageTextSize = static_cast<int32>(Width * startGameMessageScreenPercentage);
+    const std::string other = "SPACEBAR TO START";
     {
-        const int32 textWidth = (GetStringWidth(other) * startMessageTextSize) / 2;
-        int32 xPos = Width / 2 - textWidth;
-        int32 yPos = static_cast<int>(static_cast<float>(Height) * 0.5f);
-        DrawString(xPos, yPos, other, White, startMessageTextSize);
+        const int32 xPos = Width / 2;
+        const int32 yPos = static_cast<int32>(static_cast<float>(Height) * 0.5f);
+        DrawString(xPos, yPos, other, Center, White, startMessageTextSize);
+    }
+
+    Paddle leftPaddle = paddles[0];
+    Paddle rightPaddle = paddles[1];
+
+    std::string winnerText;
+    if (leftPaddle.score >= requiredScoreToWin)
+    {
+        winnerText = "LEFT PADDLE WON";
+    }
+    if (rightPaddle.score >= requiredScoreToWin)
+    {
+        winnerText = "RIGHT PADDLE WON";
+    }
+    
+    {
+        const int32 xPos = Width / 2;
+        const int32 yPos = static_cast<int32>(static_cast<float>(Height) * 0.6f);
+        DrawString(xPos, yPos, winnerText, Center, White, startMessageTextSize);
     }
 }
 
@@ -326,7 +320,7 @@ void RenderGame(float deltaTime)
 {
     Clear(Black);
     
-    RenderGrid();
+    //RenderGrid();
     DrawGridLine();
     
     for (Paddle& paddle : paddles)
@@ -341,18 +335,18 @@ void RenderGame(float deltaTime)
         const float xOffset = Width * scoreXOffsetPercentage;
         const float yOffset = Height * scoreYOffsetPercentage;
         
-        const int32 textSize = 10;
+        const int32 textSize = static_cast<int32>(Width * scoreScreenPercentage);
         // Left Paddle Score
         {
             const std::string scoreAsString = std::to_string(leftPaddle.score);
             const int32 textWidth = GetStringWidth(scoreAsString) * textSize;
-            DrawString(static_cast<int32>((Width / 2) - xOffset), static_cast<int32>(yOffset), scoreAsString, White, textSize);
+            DrawString(static_cast<int32>((Width / 2) - xOffset), static_cast<int32>(yOffset), scoreAsString, Left, White, textSize);
         }
         // Right Paddle Score
         {
             const std::string scoreAsString = std::to_string(rightPaddle.score);
             const int32 textWidth = GetStringWidth(scoreAsString) * textSize;
-            DrawString(static_cast<int32>((Width / 2) + xOffset - textWidth), static_cast<int32>(yOffset), scoreAsString, White, textSize);
+            DrawString(static_cast<int32>((Width / 2) + xOffset - textWidth), static_cast<int32>(yOffset), scoreAsString, Left, White, textSize);
         }
     }
    

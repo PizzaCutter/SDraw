@@ -6,6 +6,7 @@
 #pragma comment (lib,"Gdiplus.lib")
 // ~INCLUDES FOR GDIPLUS
 
+#include <algorithm>
 #include <iostream>
 #include <thread>
 #include <chrono>
@@ -32,6 +33,7 @@ static std::string applicationName = "SDraw Application";
 static bool bLockFrameRate = false;
 static uint32 maxFrameRate = 120;
 
+// TODO[rsmekens]: figure a way to create a better way to map this so we aren't reliant on win32 values
 static vector<char> inputBuffer;
 static vector<char> keysDown;
 int mouseX {-1}, mouseY {-1};
@@ -48,9 +50,15 @@ void Clear(Color c)
 	graphics->Clear(Gdiplus::Color(c));
 }
 
-void SetPixel(float x, float y, Color c)
+void RenderGrid()
 {
-	SetPixel(static_cast<int>(std::round(x)), static_cast<int>(std::round(y)), c);		
+	DrawLine(Width / 2, 0, Width / 2, Height, Red);
+	DrawLine(0, Height / 2, Width, Height / 2, Green);
+}
+
+void SetPixel(Vector2D pos, Color c)
+{
+	SetPixel(static_cast<int32>(std::round(pos.x)), static_cast<int32>(std::round(pos.y)), c);		
 }
 
 void SetPixel(int x, int y, Color c)
@@ -59,9 +67,9 @@ void SetPixel(int x, int y, Color c)
 	graphics->FillRectangle(&solidBrush, x, y, 1, 1);
 }
 
-void DrawRectangle(float x, float y, float width, float height, Color c)
+void DrawRectangle(Vector2D pos, Vector2D size, Color c)
 {
-	DrawRectangle(static_cast<int>(std::round(x)), static_cast<int>(std::round(y)), static_cast<int>(std::round(width)), static_cast<int>(std::round(height)), c);	
+	DrawRectangle(static_cast<int32>(std::round(pos.x)), static_cast<int32>(std::round(pos.y)), static_cast<int32>(std::round(size.x)), static_cast<int32>(std::round(size.y)), c);	
 }
 
 void DrawRectangle(int32 x, int32 y, int32 width, int32 height, Color c)
@@ -342,14 +350,30 @@ int32 GetStringWidth(const std::string& s)
 	return width;	
 }
 
-// TODO[rsmekens]: add option for alignment mode (left, right, center)
-void DrawString(int32 x, int32 y, const std::string& s, const Color color, int32 size)
+void DrawString(Vector2D pos, const std::string& s, Alignment alignment, Color color, int32 size)
 {
+	DrawString(static_cast<int32>(std::round(pos.x)), static_cast<int32>(std::round(pos.y)), s, alignment, color, size);
+}
+
+void DrawString(int32 x, int32 y, const std::string& s, Alignment alignment, const Color color, int32 size)
+{
+	const float stringWidthFloat = GetStringWidth(s) * size + ((s.size() - 1) * 0.5f) * size;
+	const int32 stringWidth = static_cast<int32>(std::round(stringWidthFloat));
+	
+	switch (alignment) {
+		case Right:
+			x -= stringWidth;
+			break;
+		case Center:
+			x -= static_cast<int32>(std::round(stringWidth / 2.0f));
+			break;
+	}
+
 	int charIndex = 0;
 	for (char c : s)
 	{
 		int32 characterWidth = DrawCharacter(x, y, c, color, size);
-		x += (characterWidth * size) + static_cast<int32>(static_cast<float>(size) * 0.5f);
+		x += (characterWidth * size) + static_cast<int32>(size * 0.5f);
 		charIndex++;
 	}
 }
