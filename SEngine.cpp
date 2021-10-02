@@ -1,20 +1,26 @@
 #include "SEngine.h"
 
+#include <windowsx.h>
+
 // INCLUDES FOR GDIPLUS
 #include <objidl.h>
 #include <gdiplus.h>
 #pragma comment (lib,"Gdiplus.lib")
 // ~INCLUDES FOR GDIPLUS
 
+// INCLUDES FOR MIDI OUTPUT
+#include <mmeapi.h>
+#pragma comment(lib, "winmm.lib")
+// ~INCLUDES FOR MIDI OUTPUT
+
 #include <algorithm>
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <deque>
 #include <iomanip>
 #include <sstream>
 #include <vector>
-
-#include <windowsx.h>
 
 using namespace std;
 using namespace std::chrono;
@@ -29,6 +35,11 @@ static unique_ptr<Gdiplus::Graphics> graphics;
 static unique_ptr<Gdiplus::Bitmap> bitmapOther;
 static unique_ptr<Gdiplus::Graphics> graphicsOther;
 static std::string applicationName = "SDraw Application";
+
+struct MusicNote { uint8_t noteId; std::chrono::milliseconds duration; };
+static deque<MusicNote> musicQueue;
+
+static unique_ptr<std::thread> musicThread;
 
 static bool bLockFrameRate = false;
 static uint32 maxFrameRate = 120;
@@ -131,6 +142,62 @@ void RemoveKeyDown(char key)
 	}
 }
 
+void PlayMidiNote(int noteId, int ms)
+{
+	if (noteId < 0)
+	{
+		return;
+	}
+	
+	if (ms < 0)
+	{
+		return;
+	}
+	
+	// TODO[rsmekens]: figure out what this noteId conversion does exactly
+	musicQueue.push_back(MusicNote{uint8(uint8(noteId) & 0x7F), milliseconds(ms)});
+}
+
+void MusicTick()
+{
+	HMIDIOUT synth = nullptr;
+	if (midiOutOpen(&synth, MIDI_MAPPER, 0, 0, CALLBACK_NULL) != MMSYSERR_NOERROR )
+	{
+		return;
+	}
+
+	// We always use the "Lead 1 (Square)" instrument because it sounds like the PC speaker
+	constexpr uint8_t Instrument = 80;
+	midiOutShortMsg(synth, 0xC0 | (Instrument << 8));
+	
+	while(true)
+	{
+		MusicNote n;
+		{
+			if (musicQueue.empty())
+			{
+				this_thread::sleep_for(1ms);
+				continue;
+			}
+			
+			n = musicQueue.front();
+			musicQueue.pop_front();
+		}
+
+		if (n.noteId != 0)
+		{
+			midiOutShortMsg(synth, 0x00700090 | (n.noteId << 8));
+		}
+		this_thread::sleep_for(n.duration);
+		if (n.noteId != 0)
+		{
+			midiOutShortMsg(synth, 0x00000090 | (n.noteId << 8));
+		}
+	}
+
+	midiOutClose(synth);
+}
+
 int APIENTRY wWinMain(HINSTANCE hInstance,
 					  HINSTANCE hPrevInstance,
 					  LPWSTR    lpCmdLine,
@@ -157,8 +224,6 @@ int APIENTRY wWinMain(HINSTANCE hInstance,
 									r.right - r.left, r.bottom - r.top, 0, 0, hInstance, 0);
 	if (window == nullptr) return 1;
 
-	
-
 	// Initialize GDI+.
 	ULONG_PTR gdiplusToken;
 	Gdiplus::GdiplusStartupInput gdiplusStartupInput;
@@ -170,6 +235,12 @@ int APIENTRY wWinMain(HINSTANCE hInstance,
 	graphicsOther = make_unique<Gdiplus::Graphics>(bitmapOther.get());
 
 	Clear(Blue);
+	// ~Initialize GDI+.
+
+	// START MUSIC FUNCTIONALITY
+	musicThread = make_unique<std::thread>(MusicTick);
+	musicThread->detach();
+	// ~START MUSIC FUNCTIONALITY
 
 	ShowWindow(window, nCmdShow);
 	UpdateWindow(window);

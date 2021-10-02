@@ -26,9 +26,24 @@ static float titleSizeScreenPercentage = 0.03f;
 static float startGameMessageScreenPercentage = 0.01f;
 static float scoreScreenPercentage = 0.01f;
 
+// Music Timing
+constexpr int MsPerMinute = 60000;
+constexpr int BPM = 160;
+constexpr int BeatsPerMs = MsPerMinute / BPM;
+
+constexpr int Duration4 =  BeatsPerMs * 1 / 1;
+constexpr int Duration8 =  BeatsPerMs * 1 / 2;
+constexpr int Duration10 = BeatsPerMs * 2 / 5;
+constexpr int Duration16 = BeatsPerMs * 1 / 4;
+constexpr int Duration20 = BeatsPerMs * 1 / 5;
+constexpr int Duration32 = BeatsPerMs * 1 / 8;
+
 #define ARROW_UP 0x26
 #define ARROW_DOWN 0x28
 #define SPACEBAR 0x20
+
+void PlayBallBounce();
+void PlayBallDestroyed();
 
 enum class Direction
 {
@@ -113,10 +128,12 @@ struct Ball
         if (direction.x < epsilon && IsOverlappingWithPaddle(leftPaddle)) 
         {
             direction.x *= -1.0f;
+            PlayBallBounce();
         }
         if (direction.x > epsilon && IsOverlappingWithPaddle(rightPaddle))
         {
             direction.x *= -1.0f;
+            PlayBallBounce();
         }
     }
 
@@ -136,6 +153,22 @@ float GetRandomNormalizedFloat()
 {
     float randomFloat = static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX);;
     return (randomFloat * 2)- 1.0f;
+}
+
+void PlayTitleMusic()
+{
+    for (int n : { 0, 48, 50, 52, 50, 48, 50 }) PlayMidiNote(n, Duration8);
+    for (int n : { 52, 48, 48 }) PlayMidiNote(n, Duration4);
+}
+
+void PlayBallBounce()
+{
+   PlayMidiNote(48, Duration8);
+}
+
+void PlayBallDestroyed()
+{
+   PlayMidiNote(64, Duration8); 
 }
 
 void ResetGame()
@@ -184,6 +217,7 @@ void Start()
     ball = {};
 
     ResetGame();
+
 }
 
 void DrawGridLine()
@@ -211,11 +245,13 @@ void CheckWinCondition()
     if (ball.position.x + ball.size.x <= -winOffset)
     {
         leftPaddle.score++;
+        PlayBallDestroyed();
         ResetGame();
     }
     if (ball.position.x >= Width + winOffset)
     {
         rightPaddle.score++;
+        PlayBallDestroyed();
         ResetGame(); 
     }
 
@@ -355,6 +391,8 @@ void RenderGame(float deltaTime)
 
 void Tick(float deltaTime)
 {
+    //PlayTitleMusic();
+    
     if (isInMenu)
     {
         UpdateMenu(deltaTime);

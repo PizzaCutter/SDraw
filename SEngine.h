@@ -65,4 +65,4 @@ void DrawString(Vector2D pos, const std::string& s, Alignment alignment, Color c
 void DrawString(int32 x, int32 y, const std::string& s, Alignment alignment, Color color, int32 size);
 // ~RENDERING UI
 
-
+void PlayMidiNote(int noteId, int ms);
