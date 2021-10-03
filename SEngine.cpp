@@ -26,6 +26,7 @@ using namespace std;
 using namespace std::chrono;
 
 #define MAX_LOADSTRING 100
+#define StringToCString(path) StringToWString(path).c_str()
 
 void Start();
 void Tick(float deltaTime);
@@ -48,6 +49,8 @@ static uint32 maxFrameRate = 120;
 static vector<char> inputBuffer;
 static vector<char> keysDown;
 int mouseX {-1}, mouseY {-1};
+
+static bool temp = false;
 
 // Forward declarations of functions included in this code module:
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
@@ -93,6 +96,27 @@ void DrawLine(int32 startX, int32 startY, int32 endX, int32 endY, Color c)
 {
 	Gdiplus::Pen pen(c);
 	graphics->DrawLine(&pen, startX, startY, endX, endY);
+}
+
+void DrawImage(const SImage& image, int32 startX, int32 startY, int32 width, int32 height)
+{
+	const int32 drawWidth = width == -1 ? image.width : width;
+	const int32 drawHeight = height == -1 ? image.height : height;
+	graphics->DrawImage((Gdiplus::Bitmap*)image.bitmap, startX, startY, drawWidth, drawHeight);	
+}
+
+void DrawImage(const SImage& image, const SRect& inDestRect, const SRect& inSrcRect)
+{
+	Gdiplus::RectF destRect { inDestRect.x, inDestRect.y, inDestRect.width, inDestRect.height };
+	Gdiplus::RectF srcRect { inSrcRect.x, inSrcRect.y, inSrcRect.width, inSrcRect.height };
+	graphics->DrawImage((Gdiplus::Bitmap*)image.bitmap, destRect, srcRect.X, srcRect.Y, srcRect.Width, srcRect.Height, Gdiplus::UnitPixel);
+}
+
+void DrawSprite(const SSprite& sprite)
+{
+	Gdiplus::RectF destRect { 0, 0, sprite.cellSizeX, static_cast<float>(sprite.srcImage.height)};
+	Gdiplus::RectF srcRect { sprite.cellSizeX * sprite.index, 0, sprite.cellSizeX, static_cast<float>(sprite.srcImage.height) };
+	graphics->DrawImage((Gdiplus::Bitmap*)sprite.srcImage.bitmap, destRect, srcRect.X, srcRect.Y, srcRect.Width, srcRect.Height, Gdiplus::UnitPixel);	
 }
 
 bool IsKeyDown(char key)
@@ -198,6 +222,7 @@ void MusicTick()
 	midiOutClose(synth);
 }
 
+
 int APIENTRY wWinMain(HINSTANCE hInstance,
 					  HINSTANCE hPrevInstance,
 					  LPWSTR    lpCmdLine,
@@ -247,7 +272,6 @@ int APIENTRY wWinMain(HINSTANCE hInstance,
 
 	Start();
 
-
 	auto lastDraw = high_resolution_clock::now();
 	MSG message;
 	while (true)
@@ -281,8 +305,9 @@ int APIENTRY wWinMain(HINSTANCE hInstance,
 			stream << std::fixed << std::setprecision(2) << " - FPS: " << fps;
 			stream << std::fixed << std::setprecision(3) << " - Delta: " << f_secs.count();
 			const std::string appName = stream.str(); 
-			SetWindowText(window, std::wstring(appName.begin(), appName.end()).c_str());
-		
+			SetWindowText(window, StringToCString(appName));
+
+			temp = !temp;
 			Tick(f_secs.count());
 			InvalidateRect(window, nullptr, false);
 	
@@ -448,3 +473,16 @@ void DrawString(int32 x, int32 y, const std::string& s, Alignment alignment, con
 		charIndex++;
 	}
 }
+
+
+bool SLoadImage(const std::string& path, SImage& outImage)
+{
+	outImage = {};
+	Gdiplus::Bitmap* loadedBitmap = new Gdiplus::Bitmap(StringToCString(path));
+	outImage.bitmap = loadedBitmap;
+	outImage.width = loadedBitmap->GetWidth();
+	outImage.height = loadedBitmap->GetHeight();
+	return true;
+}
+
+

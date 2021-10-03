@@ -10,6 +10,12 @@ static constexpr int32 Width = 160; // 160
 static constexpr int32 Height = 120; // 120
 static constexpr int32 PixelScale = 4;
 
+// HELPER FUNCTIONS
+inline const std::wstring StringToWString(const std::string& inString)
+{
+	return std::wstring(inString.begin(), inString.end());
+}
+
 // Attempt at building small game/rendering framework based on immediate2D https://github.com/npiegdon/immediate2d
 using Color = unsigned int;
 
@@ -40,6 +46,54 @@ static const Color LightMagenta = MakeColor(255,  85, 255);
 static const Color Yellow =       MakeColor(255, 255,  85);
 static const Color White =        MakeColor(255, 255, 255);
 
+
+struct SRect
+{
+	float x;
+	float y;
+	float width;
+	float height;
+};
+
+struct SImage
+{
+	// TODO[rsmekens]: can I store this as a void pointer by also including the memory size?
+	void* bitmap;
+	int32 width;
+	int32 height;
+};
+
+struct SSprite
+{
+	SImage srcImage;
+	
+	float timePerFrame = 1.f;
+	float internalTimer = 0.0f;
+
+	float cellSizeX;
+	int32 index = 0;
+
+	void UpdateSprite(float deltaTime)
+	{
+		internalTimer += deltaTime;
+
+		while(internalTimer >= timePerFrame)
+		{
+			index++;
+			index %= GetCellCount();
+			internalTimer -= timePerFrame;	
+		}
+	}
+
+	int32 GetCellCount() const
+	{
+		return srcImage.width / cellSizeX;	
+	}
+};
+
+// TODO[rsmekens]: create proper return codes?
+bool SLoadImage(const std::string& path, SImage& outImage);
+
 void Clear(Color clearColor = Black);
 void RenderGrid();
 void SetPixel(Vector2D pos, Color c);
@@ -47,6 +101,10 @@ void SetPixel(int32 x, int32 y, Color c);
 void DrawRectangle(Vector2D pos, Vector2D size, Color c);
 void DrawRectangle(int32 x, int32 y, int32 width, int32 height, Color c);
 void DrawLine(int32 startX, int32 startY, int32 endX, int32 endY, Color c);
+// TODO[rsmekens]: add color multiply?
+void DrawImage(const SImage& image, int32 startX, int32 startY, int32 width = -1, int32 height = -1);
+void DrawImage(const SImage& image, const SRect& inDestRect, const SRect& inSrcRect);
+void DrawSprite(const SSprite& sprite);
 
 // INPUT
 bool IsKeyDown(char key);
@@ -66,3 +124,4 @@ void DrawString(int32 x, int32 y, const std::string& s, Alignment alignment, Col
 // ~RENDERING UI
 
 void PlayMidiNote(int noteId, int ms);
+
