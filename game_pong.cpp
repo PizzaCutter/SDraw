@@ -148,12 +148,7 @@ bool isInMenu = true;
 Paddle paddles[2];
 Ball ball;
 
-// TODO[rsmekens]: move this into general math library?
-float GetRandomNormalizedFloat()
-{
-    float randomFloat = static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX);;
-    return (randomFloat * 2)- 1.0f;
-}
+
 
 void PlayTitleMusic()
 {

@@ -19,3 +19,9 @@ struct Vector2D
         y /= size;
     }
 };
+
+static float GetRandomNormalizedFloat() 
+{
+    float randomFloat = static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX);
+    return (randomFloat * 2)- 1.0f;
+}
