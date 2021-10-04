@@ -5,10 +5,14 @@
 
 #define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
 #include <string>
+#define Cast static_cast
 
-static constexpr int32 Width = 160; // 160
-static constexpr int32 Height = 120; // 120
+static constexpr int32 Width = 160 * 2; // 160
+static constexpr int32 Height = 120 * 2; // 120
 static constexpr int32 PixelScale = 4;
+
+static float GetHalfWidth() { return Width / 2.f; }
+static float GetHalfHeight() { return Height / 2.f; }
 
 // HELPER FUNCTIONS
 inline const std::wstring StringToWString(const std::string& inString)
@@ -61,6 +65,9 @@ struct SImage
 	void* bitmap;
 	int32 width;
 	int32 height;
+
+	int32 GetHalfWidth() const { return Cast<int32>(width / 2.f); }
+	int32 GetHalfHeight() const { return Cast<int32>(height / 2.f); }
 };
 
 struct SSprite
@@ -87,7 +94,7 @@ struct SSprite
 
 	int32 GetCellCount() const
 	{
-		return srcImage.width / cellSizeX;	
+		return Cast<int32>(srcImage.width / cellSizeX);	
 	}
 };
 
@@ -102,9 +109,11 @@ void DrawRectangle(Vector2D pos, Vector2D size, Color c);
 void DrawRectangle(int32 x, int32 y, int32 width, int32 height, Color c);
 void DrawLine(int32 startX, int32 startY, int32 endX, int32 endY, Color c);
 // TODO[rsmekens]: add color multiply?
+void DrawImage(const SImage& image, Vector2D position);
 void DrawImage(const SImage& image, int32 startX, int32 startY, int32 width = -1, int32 height = -1);
 void DrawImage(const SImage& image, const SRect& inDestRect, const SRect& inSrcRect);
-void DrawSprite(const SSprite& sprite);
+
+void DrawSprite(const SSprite& sprite, const Vector2D& position);
 
 // INPUT
 bool IsKeyDown(char key);

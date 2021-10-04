@@ -98,6 +98,11 @@ void DrawLine(int32 startX, int32 startY, int32 endX, int32 endY, Color c)
 	graphics->DrawLine(&pen, startX, startY, endX, endY);
 }
 
+void DrawImage(const SImage& image, Vector2D position)
+{
+	DrawImage(image, Cast<int32>(position.x), Cast<int32>(position.y));	
+}
+
 void DrawImage(const SImage& image, int32 startX, int32 startY, int32 width, int32 height)
 {
 	const int32 drawWidth = width == -1 ? image.width : width;
@@ -112,9 +117,9 @@ void DrawImage(const SImage& image, const SRect& inDestRect, const SRect& inSrcR
 	graphics->DrawImage((Gdiplus::Bitmap*)image.bitmap, destRect, srcRect.X, srcRect.Y, srcRect.Width, srcRect.Height, Gdiplus::UnitPixel);
 }
 
-void DrawSprite(const SSprite& sprite)
+void DrawSprite(const SSprite& sprite, const Vector2D& position)
 {
-	Gdiplus::RectF destRect { 0, 0, sprite.cellSizeX, static_cast<float>(sprite.srcImage.height)};
+	Gdiplus::RectF destRect { position.x, position.y, sprite.cellSizeX, static_cast<float>(sprite.srcImage.height)};
 	Gdiplus::RectF srcRect { sprite.cellSizeX * sprite.index, 0, sprite.cellSizeX, static_cast<float>(sprite.srcImage.height) };
 	graphics->DrawImage((Gdiplus::Bitmap*)sprite.srcImage.bitmap, destRect, srcRect.X, srcRect.Y, srcRect.Width, srcRect.Height, Gdiplus::UnitPixel);	
 }
