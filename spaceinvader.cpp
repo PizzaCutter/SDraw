@@ -2,6 +2,7 @@
 #include "SMath.h"
 
 #include <iostream>
+#include <map>
 #include <vector>
 
 #define INVADER_SPEED 50.f
@@ -15,6 +16,97 @@
 #define SPACEBAR 0x20
 
 static float BulletSpeed = 100.0f;
+
+static int32 idCounter = 0;
+static int32 NewId() { return idCounter++; }
+static int32 assetIdCounter = 0;
+static int32 NewAssetId() { return assetIdCounter++; }
+
+struct Entity
+{
+	int32 entityId;	
+};
+
+std::map<int32, Vector2D> positionArray;
+std::map<int32, class Renderable> renderArray;
+std::map<int32, SImage> imageAssetArray;
+std::map<int32, class PlayerControl> controllerArray;
+
+int32 GetAssetId(const std::string& assetPath)
+{
+	for (auto image : imageAssetArray)
+	{
+		if (image.second.assetPath == assetPath)
+		{
+			return image.first;
+		}
+	}
+
+	const int32 newAssetId = NewAssetId();
+	SImage newImage;
+	SLoadImage(assetPath, newImage);
+	imageAssetArray[newAssetId] = newImage;
+	return newAssetId;
+}
+
+class Renderable
+{
+public:
+	int32 entityId;
+	int32 assetId;
+	
+	void Render()
+	{
+		const Vector2D position = positionArray[entityId];
+		const SImage image = imageAssetArray[assetId];
+		const int32 width = image.GetHalfWidth();
+		const int32 height = image.GetHalfHeight();
+		DrawImage(image, Vector2D{position.x - width, position.y - height});	
+	}
+};
+
+class RenderManager
+{
+public:
+	void Update()
+	{
+		for (auto renderPair: renderArray)
+		{
+			renderPair.second.Render();
+		}
+	}
+};
+
+class PlayerControl
+{
+public:
+	int32 entityId;
+	
+	void Update(float deltaTime)
+	{
+		Vector2D& position = positionArray[entityId];
+		if (IsKeyDown(ARROW_LEFT))
+		{
+			position.x -= 100.f * deltaTime;
+		}
+		if (IsKeyDown(ARROW_RIGHT))
+		{
+			position.x += 100.f * deltaTime;		
+		}
+	}
+};
+
+class ControllerManager
+{
+public:
+	void Update(float deltaTime)
+	{
+		for (auto controllerPair : controllerArray)
+		{
+			controllerPair.second.Update(deltaTime);
+		}
+	}
+};
 
 // Define an image
 struct PlayerSpaceship
@@ -145,18 +237,49 @@ PlayerSpaceship Player;
 Bullet Bullet;
 std::vector<Invader*> Invaders;
 
+RenderManager renderManager;
+ControllerManager controllerManager;
+
 // Space invader is using these window settings 
 // static constexpr int32 Width = 160 * 2; // 160
 // static constexpr int32 Height = 120 * 2; // 120
 // static constexpr int32 PixelScale = 4;
 
+
 void Start()
 {
 	// Load the image
-	Player = {};
-	SLoadImage("Assets/SpaceInvader/Spaceship.png", Player.PlayerSprite);
-	Player.Position = Vector2D{Cast<float>(Width / 2), Cast<float>(Height - 10)};
-	Player.Speed = 100.0f;
+	// Player = {};
+	// SLoadImage("Assets/SpaceInvader/Spaceship.png", Player.PlayerSprite);
+	// Player.Position = Vector2D{Cast<float>(Width / 2), Cast<float>(Height - 10)};
+	// Player.Speed = 100.0f;
+
+	// Creating new player
+	{
+		for (int i = 0; i < 5; ++i)
+		{
+			const int32 newId = NewId();
+
+			positionArray[newId] = Vector2D{Cast<float>(Width / 2) + 20 * i, Cast<float>(Height - 10)};
+
+			// Constructing our renderable object
+			Renderable renderable;
+			renderable.entityId = newId;
+			renderable.assetId = GetAssetId("Assets/SpaceInvader/Spaceship.png");
+			renderArray[newId] = renderable;
+
+			controllerArray[newId] = PlayerControl{ newId };
+		}
+		// const int32 newId = NewId();
+		//
+		// positionArray[newId] = Vector2D{Cast<float>(Width / 2), Cast<float>(Height - 10)};
+		//
+		// // Constructing our renderable object
+		// Renderable renderable;
+		// renderable.entityId = newId;
+		// renderable.assetId = GetAssetId("Assets/SpaceInvader/Spaceship.png");
+		// renderArray[newId] = renderable;
+	}
 
 	Bullet = {};
 	Bullet.Position = Vector2D{-100.f, -100.f};
@@ -201,8 +324,8 @@ void Tick(float deltaTime)
 	Clear();
 	RenderGrid();
 
-	Player.UpdatePlayer(deltaTime);
-	Player.DrawPlayer();
+	//Player.UpdatePlayer(deltaTime);
+	//Player.DrawPlayer();
 
 	Bullet.UpdateBullet(deltaTime);
 	Bullet.DrawBullet();
@@ -259,4 +382,7 @@ void Tick(float deltaTime)
 		invader->UpdateInvader(deltaTime);
 		invader->DrawInvader();
 	}
+
+	controllerManager.Update(deltaTime);
+	renderManager.Update();
 }

@@ -76,6 +76,7 @@ struct SRect
 struct SImage
 {
 	// TODO[rsmekens]: can I store this as a void pointer by also including the memory size?
+	std::string assetPath;
 	void* bitmap;
 	int32 width;
 	int32 height;

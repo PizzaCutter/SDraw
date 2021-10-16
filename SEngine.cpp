@@ -490,6 +490,7 @@ void DrawString(int32 x, int32 y, const std::string& s, Alignment alignment, con
 bool SLoadImage(const std::string& path, SImage& outImage)
 {
 	outImage = {};
+	outImage.assetPath = path;
 	Gdiplus::Bitmap* loadedBitmap = new Gdiplus::Bitmap(StringToCString(path));
 	outImage.bitmap = loadedBitmap;
 	outImage.width = loadedBitmap->GetWidth();
