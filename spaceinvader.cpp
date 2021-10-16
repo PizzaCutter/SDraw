@@ -2,6 +2,13 @@
 #include "SMath.h"
 
 #include <iostream>
+#include <vector>
+
+#define INVADER_SPEED 50.f
+#define INVADER_START_DIRECTION 1.f
+#define INVADER_SPRITE_CELL_SIZE 22;
+#define INVADER_X_OFFSET 15.f 
+#define INVADER_Y_OFFSET 10.f
 
 #define ARROW_LEFT 0x25
 #define ARROW_RIGHT 0x27
@@ -37,9 +44,11 @@ struct PlayerSpaceship
 struct Invader
 {
 	Vector2D Position;
+	Vector2D Scale;
 	SSprite Sprite;
 	float Direction;
 	float MovementSpeed;
+	bool Alive;
 
 	void UpdateInvader(float deltaTime)
 	{
@@ -48,24 +57,55 @@ struct Invader
 		if (Direction > 0.1f)
 		{
 			Position.x += MovementSpeed * deltaTime;
-			if (Position.x >= Width - Sprite.cellSizeX)
-			{
-				Direction = -1.0f;
-			}
 		}else
 		{
 			Position.x -= MovementSpeed * deltaTime;
+		}
+	}
+
+	void MoveDownRow()
+	{
+		Position.y += Sprite.srcImage.height;	
+	}
+
+	void InvertDirection()
+	{
+		Direction *= -1.0f;	
+	}
+
+	bool ReachedEnd()
+	{
+		if (Direction > 0.1f)
+		{
+			if (Position.x >= Width - Sprite.cellSizeX)
+			{
+				return true;
+			}
+		}else
+		{
 			if (Position.x <= 0)
 			{
-				Direction = 1.0f;	
+				return true;
 			}
 		}
+
+		return false;
 	}
 
 	void DrawInvader()
 	{
-		DrawSprite(Sprite, Position);	
+		DrawSprite(Sprite, Vector2D{std::truncf(Position.x), std::truncf(Position.y)}, Scale);	
 	}
+
+	SRect GetCollisionRect() const
+	{
+		SRect newRect;
+		newRect.x = Position.x;
+		newRect.y = Position.y;
+		newRect.width = Sprite.cellSizeX * Scale.x;
+		newRect.height = Sprite.srcImage.height * Scale.y;
+		return newRect;
+	} 
 };
 
 struct Bullet
@@ -88,12 +128,22 @@ struct Bullet
 	{
 		DrawRectangle(Position, Size, White);	
 	}
+	
+	SRect GetCollisionRect() const
+	{
+		SRect newRect;
+		newRect.x = Position.x;
+		newRect.y = Position.y;
+		newRect.width = Size.x;
+		newRect.height = Size.y; 
+		return newRect;
+	} 
 };
 
 
 PlayerSpaceship Player;
 Bullet Bullet;
-Invader Invader;
+std::vector<Invader*> Invaders;
 
 // Space invader is using these window settings 
 // static constexpr int32 Width = 160 * 2; // 160
@@ -112,12 +162,28 @@ void Start()
 	Bullet.Position = Vector2D{-100.f, -100.f};
 	Bullet.Size = Vector2D{1.f, 5.f};
 
-	Invader = {};
-	Invader.Position = Vector2D{GetHalfWidth(), GetHalfHeight()};
-	SLoadImage("Assets/SpaceInvader/Invader_01.png", Invader.Sprite.srcImage);
-	Invader.Sprite.cellSizeX = 22;
-	Invader.MovementSpeed = 50.f;
-	Invader.Direction = 1.0f;
+	const int32 invaderCountHorizontal = 10;
+	const int32 invaderCountVertical = 3;
+	for (int x = 0; x < invaderCountHorizontal; ++x)
+	{
+		for (int y = 0; y < invaderCountVertical; ++y)
+		{
+			Invader* newInvader = new Invader();
+			// TODO[rsmekens]: We should just load it once using simple implementation of an asset manager
+			SLoadImage("Assets/SpaceInvader/Invader_01.png", newInvader->Sprite.srcImage);
+			// TODO[rsmekens]: We could store this in an asset format that then includes reference to the image?
+			newInvader->Sprite.cellSizeX = INVADER_SPRITE_CELL_SIZE;
+			newInvader->MovementSpeed = INVADER_SPEED;
+			newInvader->Direction = INVADER_START_DIRECTION;
+			const float xPos = x * INVADER_X_OFFSET;
+			const float yPos = y * INVADER_Y_OFFSET;
+			newInvader->Position = Vector2D{xPos, yPos};
+			newInvader->Scale = Vector2D::OneVector;
+			newInvader->Scale = Vector2D{0.5f, 0.5f};
+			newInvader->Alive = true;
+			Invaders.push_back(newInvader);
+		}
+	}
 }
 
 void CheckFireInput()
@@ -143,6 +209,54 @@ void Tick(float deltaTime)
 	
 	CheckFireInput();
 
-	Invader.UpdateInvader(deltaTime);
-	Invader.DrawInvader();
+	bool reachedEnd = false;
+	for (Invader* invader : Invaders)
+	{
+		if (invader == nullptr)
+		{
+			continue;
+		}
+
+		if (invader->Alive == false)
+		{
+			continue;
+		}
+
+		// TODO[rsmekens]: do bullet vs invader collision checks here
+		SRect invaderRect = invader->GetCollisionRect();
+		SRect bulletRect = Bullet.GetCollisionRect();
+		if (invaderRect.IsRectangleOverlapping(bulletRect))
+		{
+			invader->Alive = false;
+			Bullet.Position = Vector2D{-100.f, -100.f};
+			continue;
+		}
+		
+		if (invader->ReachedEnd())
+		{
+			reachedEnd = true;
+		}
+	}
+
+	for (Invader* invader : Invaders)
+	{
+		if (invader == nullptr)
+		{
+			continue;
+		}
+
+		if (invader->Alive == false)
+		{
+			continue;
+		}
+
+		if (reachedEnd)
+		{
+			invader->MoveDownRow();
+			invader->InvertDirection();
+		}
+
+		invader->UpdateInvader(deltaTime);
+		invader->DrawInvader();
+	}
 }

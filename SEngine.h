@@ -57,6 +57,20 @@ struct SRect
 	float y;
 	float width;
 	float height;
+
+	// TODO[rsmekens]: create constructor to create SRect from Vector2D position and Size
+	
+	bool IsRectangleOverlapping(const SRect& rectLhs) const
+	{
+		if (x + width >= rectLhs.x && x <= rectLhs.x + rectLhs.width)
+		{
+			if (y + height >= rectLhs.y && y <= rectLhs.y + rectLhs.height)
+			{
+				return true;     
+			}
+		}
+		return false;
+	}
 };
 
 struct SImage
@@ -114,6 +128,7 @@ void DrawImage(const SImage& image, int32 startX, int32 startY, int32 width = -1
 void DrawImage(const SImage& image, const SRect& inDestRect, const SRect& inSrcRect);
 
 void DrawSprite(const SSprite& sprite, const Vector2D& position);
+void DrawSprite(const SSprite& sprite, const Vector2D& position, const Vector2D& scale);
 
 // INPUT
 bool IsKeyDown(char key);

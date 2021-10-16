@@ -124,6 +124,13 @@ void DrawSprite(const SSprite& sprite, const Vector2D& position)
 	graphics->DrawImage((Gdiplus::Bitmap*)sprite.srcImage.bitmap, destRect, srcRect.X, srcRect.Y, srcRect.Width, srcRect.Height, Gdiplus::UnitPixel);	
 }
 
+void DrawSprite(const SSprite& sprite, const Vector2D& position, const Vector2D& scale)
+{
+	Gdiplus::RectF destRect { position.x, position.y, sprite.cellSizeX * scale.x, static_cast<float>(sprite.srcImage.height * scale.y)};
+	Gdiplus::RectF srcRect { sprite.cellSizeX * sprite.index, 0, sprite.cellSizeX, static_cast<float>(sprite.srcImage.height) };
+	graphics->DrawImage((Gdiplus::Bitmap*)sprite.srcImage.bitmap, destRect, srcRect.X, srcRect.Y, srcRect.Width, srcRect.Height, Gdiplus::UnitPixel);	
+}
+
 bool IsKeyDown(char key)
 {
 	for (const char& curKey : keysDown)
