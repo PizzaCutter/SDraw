@@ -39,6 +39,7 @@ std::map<int32, class Renderable_Square> renderableSquareArray;
 
 std::map<int32, class PlayerControl> playerControlArray;
 std::vector<int32> bulletArray;
+std::vector<int32> invaderArray;
 
 std::map<int32, SImage> imageAssetArray;
 
@@ -84,6 +85,41 @@ public:
 		DrawImage(image, Vector2D{position.x - width, position.y - height});	
 	}
 };
+
+// class Renderable_Sprite
+// {
+// public:
+// 	int32 entityId;
+// 	int32 assetId;
+// 	
+// 	Vector2D SpriteCellSize;
+//
+// 	float timePerFrame = 1.f;
+// 	float internalTimer = 0.0f;
+//
+// 	int32 index = 0;
+//
+// 	Renderable_Sprite() = default;
+// 	Renderable_Sprite(int32 inEntityId, int32 inAssetId, Vector2D inSpriteCellSize) 
+// 	{
+// 		entityId = inEntityId;
+// 		assetId = inAssetId;
+// 		SpriteCellSize = inSpriteCellSize;
+// 	}
+//
+// 	void Render()
+// 	{
+// 		const Transform transform = transformArray[entityId];
+// 		const Vector2D position = transform.Position; 
+// 		const SImage image = imageAssetArray[assetId];
+// 		const int32 width = image.GetHalfWidth();
+// 		const int32 height = image.GetHalfHeight();
+// 		DrawImage(image, Vector2D{position.x - width, position.y - height});
+//
+// 		SSprite
+// 		DrawSprite()
+// 	}
+// };
 
 class Renderable_Square
 {
@@ -183,8 +219,6 @@ public:
 	}
 };
 
-
-
 class BulletManager
 {
 public:
@@ -201,6 +235,18 @@ public:
 			{
 				DeleteBullet(entityId);
 			}
+		}
+	}
+};
+
+class InvaderManager
+{
+public:
+	void Update(float deltaTime)
+	{
+		for (auto entityId : invaderArray)
+		{
+			
 		}
 	}
 };
@@ -272,18 +318,11 @@ struct Invader
 	} 
 };
 
-std::vector<Invader*> Invaders;
-
 ImageRenderManager renderManager;
 SquareRenderManager squareRenderManager;
 ControllerManager controllerManager;
 BulletManager bulletManager;
-
-// Space invader is using these window settings 
-// static constexpr int32 Width = 160 * 2; // 160
-// static constexpr int32 Height = 120 * 2; // 120
-// static constexpr int32 PixelScale = 4;
-
+InvaderManager invaderManager;
 
 void Start()
 {
@@ -303,20 +342,13 @@ void Start()
 	{
 		for (int y = 0; y < invaderCountVertical; ++y)
 		{
-			Invader* newInvader = new Invader();
-			// TODO[rsmekens]: We should just load it once using simple implementation of an asset manager
-			SLoadImage("Assets/SpaceInvader/Invader_01.png", newInvader->Sprite.srcImage);
-			// TODO[rsmekens]: We could store this in an asset format that then includes reference to the image?
-			newInvader->Sprite.cellSizeX = INVADER_SPRITE_CELL_SIZE;
-			newInvader->MovementSpeed = INVADER_SPEED;
-			newInvader->Direction = INVADER_START_DIRECTION;
 			const float xPos = x * INVADER_X_OFFSET;
 			const float yPos = y * INVADER_Y_OFFSET;
-			newInvader->Position = Vector2D{xPos, yPos};
-			newInvader->Scale = Vector2D::OneVector;
-			newInvader->Scale = Vector2D{0.5f, 0.5f};
-			newInvader->Alive = true;
-			Invaders.push_back(newInvader);
+			
+			const int32 newId = NewId();
+			transformArray[newId] = Transform{Vector2D{xPos, yPos}};
+			renderableImagesArray[newId] = Renderable_Image { newId, GetAssetId("Assets/SpaceInvader/Invader_01.png")};
+			invaderArray.push_back(newId);
 		}
 	}
 }
@@ -326,59 +358,10 @@ void Tick(float deltaTime)
 	Clear();
 	RenderGrid();
 
-	bool reachedEnd = false;
-	for (Invader* invader : Invaders)
-	{
-		if (invader == nullptr)
-		{
-			continue;
-		}
-
-		if (invader->Alive == false)
-		{
-			continue;
-		}
-
-		// TODO[rsmekens]: do bullet vs invader collision checks here
-		// SRect invaderRect = invader->GetCollisionRect();
-		// SRect bulletRect = Bullet.GetCollisionRect();
-		// if (invaderRect.IsRectangleOverlapping(bulletRect))
-		// {
-		// 	invader->Alive = false;
-		// 	Bullet.Position = Vector2D{-100.f, -100.f};
-		// 	continue;
-		// }
-		
-		if (invader->ReachedEnd())
-		{
-			reachedEnd = true;
-		}
-	}
-
-	for (Invader* invader : Invaders)
-	{
-		if (invader == nullptr)
-		{
-			continue;
-		}
-
-		if (invader->Alive == false)
-		{
-			continue;
-		}
-
-		if (reachedEnd)
-		{
-			invader->MoveDownRow();
-			invader->InvertDirection();
-		}
-
-		invader->UpdateInvader(deltaTime);
-		invader->DrawInvader();
-	}
-
 	controllerManager.Update(deltaTime);
+	invaderManager.Update(deltaTime);
 	bulletManager.Update(deltaTime);
+	
 	renderManager.Update();
 	squareRenderManager.Update();
 }
