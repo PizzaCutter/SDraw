@@ -6,8 +6,6 @@
 #include <vector>
 
 static constexpr float INVADER_SPEED = 50.f;
-static constexpr float  INVADER_START_DIRECTION = 1.f;
-static constexpr float  INVADER_SPRITE_CELL_SIZE = 22;
 static constexpr float  INVADER_X_OFFSET = 15.f;
 static constexpr float  INVADER_Y_OFFSET = 10.f;
 
@@ -31,10 +29,19 @@ struct Transform
 	Vector2D Scale = Vector2D::OneVector;
 };
 
+enum class Direction
+{
+	Left,
+	Right,
+	Up,
+	Down
+};
+
 std::map<int32, Transform> transformArray;
 std::map<int32, Attributes> attributesArray;
 
 std::map<int32, class Renderable_Image> renderableImagesArray;
+std::map<int32, class Renderable_Sprite> renderableSpriteArray;
 std::map<int32, class Renderable_Square> renderableSquareArray;
 
 std::map<int32, class PlayerControl> playerControlArray;
@@ -86,40 +93,60 @@ public:
 	}
 };
 
-// class Renderable_Sprite
-// {
-// public:
-// 	int32 entityId;
-// 	int32 assetId;
-// 	
-// 	Vector2D SpriteCellSize;
-//
-// 	float timePerFrame = 1.f;
-// 	float internalTimer = 0.0f;
-//
-// 	int32 index = 0;
-//
-// 	Renderable_Sprite() = default;
-// 	Renderable_Sprite(int32 inEntityId, int32 inAssetId, Vector2D inSpriteCellSize) 
-// 	{
-// 		entityId = inEntityId;
-// 		assetId = inAssetId;
-// 		SpriteCellSize = inSpriteCellSize;
-// 	}
-//
-// 	void Render()
-// 	{
-// 		const Transform transform = transformArray[entityId];
-// 		const Vector2D position = transform.Position; 
-// 		const SImage image = imageAssetArray[assetId];
-// 		const int32 width = image.GetHalfWidth();
-// 		const int32 height = image.GetHalfHeight();
-// 		DrawImage(image, Vector2D{position.x - width, position.y - height});
-//
-// 		SSprite
-// 		DrawSprite()
-// 	}
-// };
+class Renderable_Sprite
+{
+public:
+	int32 entityId;
+	int32 assetId;
+	
+	Vector2D SpriteCellSize;
+
+	float timePerFrame = 0.5f;
+
+	Renderable_Sprite() = default;
+	Renderable_Sprite(int32 inEntityId, int32 inAssetId, int32 inCellCountX, int32 inCellCountY = 1) 
+	{
+		entityId = inEntityId;
+		assetId = inAssetId;
+		cellCountX = inCellCountX;
+		cellCountY = inCellCountY;
+
+		const SImage& image = imageAssetArray[assetId];
+		SpriteCellSize.x = image.width / cellCountX;
+		SpriteCellSize.y = image.height / cellCountY;
+	}
+
+	void Render(float deltaTime)
+	{
+		const Transform transform = transformArray[entityId];
+		const Vector2D position = transform.Position; 
+		const SImage image = imageAssetArray[assetId];
+
+		SRect srcRect = SRect {position.x, position.y, SpriteCellSize.x * transform.Scale.x, SpriteCellSize.y  * transform.Scale.y};
+		SRect dstRect = SRect {SpriteCellSize.x * index, 0, SpriteCellSize.x, SpriteCellSize.y };
+		DrawSprite(image, srcRect, dstRect);
+		
+		UpdateSprite(deltaTime);
+	}
+
+	void UpdateSprite(float deltaTime)
+	{
+		internalTimer += deltaTime;
+
+		while(internalTimer >= timePerFrame)
+		{
+			index++;
+			index %= cellCountX;
+			internalTimer -= timePerFrame;
+		}
+	}
+
+private:
+	int32 index = 0;
+	float internalTimer = 0.0f;
+	int32 cellCountX = 1;
+	int32 cellCountY = 1;
+};
 
 class Renderable_Square
 {
@@ -139,7 +166,7 @@ public:
 class ImageRenderManager
 {
 public:
-	void Update()
+	void Update(float deltaTime)
 	{
 		for (auto renderPair: renderableImagesArray)
 		{
@@ -148,10 +175,22 @@ public:
 	}
 };
 
+class SpriteRenderManager
+{
+public:
+	void Update(float deltaTime)
+	{
+		for (std::pair<const int32, Renderable_Sprite>& renderPair : renderableSpriteArray)
+		{
+			renderPair.second.Render(deltaTime);
+		}
+	}
+};
+
 class SquareRenderManager
 {
 public:
-	void Update()
+	void Update(float deltaTime)
 	{
 		for (auto renderPair : renderableSquareArray)
 		{
@@ -242,83 +281,62 @@ public:
 class InvaderManager
 {
 public:
+	Direction movementDirection = Direction::Right;
+	
 	void Update(float deltaTime)
 	{
+		// Update space invader positions
 		for (auto entityId : invaderArray)
 		{
+			Transform& transform = transformArray[entityId];
+
+			if (movementDirection == Direction::Left)
+			{
+				transform.Position.x -= INVADER_SPEED * deltaTime;	
+			}else if (movementDirection == Direction::Right)
+			{
+				transform.Position.x += INVADER_SPEED * deltaTime;
+			}
+		}
+
+		Direction prevMovementDirection = movementDirection;
+		// Check if we should start moving to the other side of the screen
+		for (auto entityId : invaderArray)
+		{
+			Transform& transform = transformArray[entityId];
+			const Renderable_Sprite& sprite = renderableSpriteArray[entityId]; 
 			
-		}
-	}
-};
-
-struct Invader
-{
-	Vector2D Position;
-	Vector2D Scale;
-	SSprite Sprite;
-	float Direction;
-	float MovementSpeed;
-	bool Alive;
-
-	void UpdateInvader(float deltaTime)
-	{
-		Sprite.UpdateSprite(deltaTime);
-
-		if (Direction > 0.1f)
-		{
-			Position.x += MovementSpeed * deltaTime;
-		}else
-		{
-			Position.x -= MovementSpeed * deltaTime;
-		}
-	}
-
-	void MoveDownRow()
-	{
-		Position.y += Sprite.srcImage.height;	
-	}
-
-	void InvertDirection()
-	{
-		Direction *= -1.0f;	
-	}
-
-	bool ReachedEnd()
-	{
-		if (Direction > 0.1f)
-		{
-			if (Position.x >= Width - Sprite.cellSizeX)
+			if (movementDirection == Direction::Right)
 			{
-				return true;
-			}
-		}else
-		{
-			if (Position.x <= 0)
+				if (transform.Position.x >= Width - sprite.SpriteCellSize.x)
+				{
+					movementDirection = Direction::Left;
+					break;
+				}
+			}else if (movementDirection == Direction::Left)
 			{
-				return true;
+				if (transform.Position.x <= 0)
+				{
+					movementDirection = Direction::Right;
+					break;
+				}
+			}	
+		}
+
+		// Move all space invaders down
+		if (prevMovementDirection != movementDirection)
+		{
+			for (auto entityId : invaderArray)
+			{
+				Transform& transform = transformArray[entityId];
+				transform.Position.y += 15.f; 
 			}
 		}
-
-		return false;
 	}
-
-	void DrawInvader()
-	{
-		DrawSprite(Sprite, Vector2D{std::truncf(Position.x), std::truncf(Position.y)}, Scale);	
-	}
-
-	SRect GetCollisionRect() const
-	{
-		SRect newRect;
-		newRect.x = Position.x;
-		newRect.y = Position.y;
-		newRect.width = Sprite.cellSizeX * Scale.x;
-		newRect.height = Sprite.srcImage.height * Scale.y;
-		return newRect;
-	} 
 };
 
 ImageRenderManager renderManager;
+SpriteRenderManager spriteRenderManager;
 SquareRenderManager squareRenderManager;
 ControllerManager controllerManager;
 BulletManager bulletManager;
@@ -336,6 +354,7 @@ void Start()
 		playerEntityId = newId;
 	}
 
+	// Creating lot's of space invaders :) 
 	const int32 invaderCountHorizontal = 10;
 	const int32 invaderCountVertical = 3;
 	for (int x = 0; x < invaderCountHorizontal; ++x)
@@ -346,8 +365,8 @@ void Start()
 			const float yPos = y * INVADER_Y_OFFSET;
 			
 			const int32 newId = NewId();
-			transformArray[newId] = Transform{Vector2D{xPos, yPos}};
-			renderableImagesArray[newId] = Renderable_Image { newId, GetAssetId("Assets/SpaceInvader/Invader_01.png")};
+			transformArray[newId] = Transform{Vector2D{xPos, yPos}, Vector2D { 0.5f, 0.5f }};
+			renderableSpriteArray[newId] = Renderable_Sprite { newId, GetAssetId("Assets/SpaceInvader/Invader_01.png"), 2, 1};
 			invaderArray.push_back(newId);
 		}
 	}
@@ -362,6 +381,7 @@ void Tick(float deltaTime)
 	invaderManager.Update(deltaTime);
 	bulletManager.Update(deltaTime);
 	
-	renderManager.Update();
-	squareRenderManager.Update();
+	renderManager.Update(deltaTime);
+	spriteRenderManager.Update(deltaTime);
+	squareRenderManager.Update(deltaTime);
 }

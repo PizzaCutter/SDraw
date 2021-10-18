@@ -130,6 +130,7 @@ void DrawImage(const SImage& image, const SRect& inDestRect, const SRect& inSrcR
 
 void DrawSprite(const SSprite& sprite, const Vector2D& position);
 void DrawSprite(const SSprite& sprite, const Vector2D& position, const Vector2D& scale);
+void DrawSprite(const SImage& image, const SRect& inDestRect, const SRect& inSrcRect);
 
 // INPUT
 bool IsKeyDown(char key);
