@@ -5,32 +5,44 @@
 #include <map>
 #include <vector>
 
-#define INVADER_SPEED 50.f
-#define INVADER_START_DIRECTION 1.f
-#define INVADER_SPRITE_CELL_SIZE 22;
-#define INVADER_X_OFFSET 15.f 
-#define INVADER_Y_OFFSET 10.f
+static constexpr float INVADER_SPEED = 50.f;
+static constexpr float  INVADER_START_DIRECTION = 1.f;
+static constexpr float  INVADER_SPRITE_CELL_SIZE = 22;
+static constexpr float  INVADER_X_OFFSET = 15.f;
+static constexpr float  INVADER_Y_OFFSET = 10.f;
 
 #define ARROW_LEFT 0x25
 #define ARROW_RIGHT 0x27
 #define SPACEBAR 0x20
-
-static float BulletSpeed = 100.0f;
 
 static int32 idCounter = 0;
 static int32 NewId() { return idCounter++; }
 static int32 assetIdCounter = 0;
 static int32 NewAssetId() { return assetIdCounter++; }
 
-struct Entity
+struct Attributes
 {
-	int32 entityId;	
+	float SPEED;
 };
 
-std::map<int32, Vector2D> positionArray;
-std::map<int32, class Renderable> renderArray;
+struct Transform
+{
+	Vector2D Position = Vector2D::ZeroVector;
+	Vector2D Scale = Vector2D::OneVector;
+};
+
+std::map<int32, Transform> transformArray;
+std::map<int32, Attributes> attributesArray;
+
+std::map<int32, class Renderable_Image> renderableImagesArray;
+std::map<int32, class Renderable_Square> renderableSquareArray;
+
+std::map<int32, class PlayerControl> playerControlArray;
+std::vector<int32> bulletArray;
+
 std::map<int32, SImage> imageAssetArray;
-std::map<int32, class PlayerControl> controllerArray;
+
+int32 playerEntityId;
 
 int32 GetAssetId(const std::string& assetPath)
 {
@@ -49,15 +61,23 @@ int32 GetAssetId(const std::string& assetPath)
 	return newAssetId;
 }
 
-class Renderable
+class Renderable_Image
 {
 public:
 	int32 entityId;
 	int32 assetId;
-	
+
+	Renderable_Image() = default;
+	Renderable_Image(int32 inEntityId, int32 inAssetId) 
+	{
+		entityId = inEntityId;
+		assetId = inAssetId;
+	}
+
 	void Render()
 	{
-		const Vector2D position = positionArray[entityId];
+		const Transform transform = transformArray[entityId];
+		const Vector2D position = transform.Position; 
 		const SImage image = imageAssetArray[assetId];
 		const int32 width = image.GetHalfWidth();
 		const int32 height = image.GetHalfHeight();
@@ -65,17 +85,68 @@ public:
 	}
 };
 
-class RenderManager
+class Renderable_Square
+{
+public:
+	int32 entityId;
+	Color color;
+
+	Renderable_Square() = default;
+
+	void Render()
+	{
+		const Transform& transform = transformArray[entityId];
+		DrawRectangle(transform.Position, transform.Scale, color);	
+	}
+};
+
+class ImageRenderManager
 {
 public:
 	void Update()
 	{
-		for (auto renderPair: renderArray)
+		for (auto renderPair: renderableImagesArray)
 		{
 			renderPair.second.Render();
 		}
 	}
 };
+
+class SquareRenderManager
+{
+public:
+	void Update()
+	{
+		for (auto renderPair : renderableSquareArray)
+		{
+			renderPair.second.Render();
+		}
+	}
+};
+
+void CreateBullet(const Transform& inTransform)
+{
+	const int32 entityId = NewId();
+	transformArray[entityId] = Transform{ inTransform.Position, Vector2D {2.0f, 5.0f}};
+	attributesArray[entityId] = Attributes{-100.f};
+	renderableSquareArray[entityId] = Renderable_Square {entityId, White };
+	bulletArray.push_back(entityId);
+}
+
+void DeleteBullet(int32 entityId)
+{
+	transformArray.erase(entityId);
+	renderableImagesArray.erase(entityId);
+	
+	for (auto it = bulletArray.begin(); it != bulletArray.end();)
+	{
+		if (*it == entityId)
+		{
+			bulletArray.erase(it);
+			break;
+		}
+	}
+}
 
 class PlayerControl
 {
@@ -84,14 +155,18 @@ public:
 	
 	void Update(float deltaTime)
 	{
-		Vector2D& position = positionArray[entityId];
+		Transform& transform = transformArray[entityId];
 		if (IsKeyDown(ARROW_LEFT))
 		{
-			position.x -= 100.f * deltaTime;
+			transform.Position.x -= attributesArray[entityId].SPEED * deltaTime;
 		}
 		if (IsKeyDown(ARROW_RIGHT))
 		{
-			position.x += 100.f * deltaTime;		
+			transform.Position.x += attributesArray[entityId].SPEED * deltaTime;		
+		}
+		if (IsKeyDown(SPACEBAR) && bulletArray.size() <= 0)
+		{
+			CreateBullet(transform);			
 		}
 	}
 };
@@ -101,35 +176,32 @@ class ControllerManager
 public:
 	void Update(float deltaTime)
 	{
-		for (auto controllerPair : controllerArray)
+		for (auto controllerPair : playerControlArray)
 		{
 			controllerPair.second.Update(deltaTime);
 		}
 	}
 };
 
-// Define an image
-struct PlayerSpaceship
+
+
+class BulletManager
 {
-	SImage PlayerSprite;
-	Vector2D Position;
-	float Speed;
-
-	void UpdatePlayer(float deltaTime)
+public:
+	void Update(float deltaTime)
 	{
-		if (IsKeyDown(ARROW_LEFT))
+		for (auto entityId : bulletArray)
 		{
-			Position.x -= Speed * deltaTime;
-		}
-		if (IsKeyDown(ARROW_RIGHT))
-		{
-			Position.x += Speed * deltaTime;		
-		}
-	}
+			Transform& transform = transformArray[entityId];
+			Attributes& attribute = attributesArray[entityId];
+			Vector2D& position = transform.Position;
+			position.y += attribute.SPEED * deltaTime;
 
-	void DrawPlayer()
-	{
-		DrawImage(PlayerSprite, Vector2D{Position.x - PlayerSprite.GetHalfWidth(), Position.y - PlayerSprite.GetHalfHeight()});
+			if (position.y <= 0.f)
+			{
+				DeleteBullet(entityId);
+			}
+		}
 	}
 };
 
@@ -200,45 +272,12 @@ struct Invader
 	} 
 };
 
-struct Bullet
-{
-	Vector2D Position;
-	Vector2D Size;
-	float Velocity;
-	
-	void UpdateBullet(float deltaTime)
-	{
-		Position.y += Velocity * deltaTime;
-
-		// We went outside of screen boundary
-		if (Position.y <= -Size.y)
-		{
-			Velocity = 0.0f;
-		}
-	}
-	void DrawBullet()
-	{
-		DrawRectangle(Position, Size, White);	
-	}
-	
-	SRect GetCollisionRect() const
-	{
-		SRect newRect;
-		newRect.x = Position.x;
-		newRect.y = Position.y;
-		newRect.width = Size.x;
-		newRect.height = Size.y; 
-		return newRect;
-	} 
-};
-
-
-PlayerSpaceship Player;
-Bullet Bullet;
 std::vector<Invader*> Invaders;
 
-RenderManager renderManager;
+ImageRenderManager renderManager;
+SquareRenderManager squareRenderManager;
 ControllerManager controllerManager;
+BulletManager bulletManager;
 
 // Space invader is using these window settings 
 // static constexpr int32 Width = 160 * 2; // 160
@@ -248,42 +287,15 @@ ControllerManager controllerManager;
 
 void Start()
 {
-	// Load the image
-	// Player = {};
-	// SLoadImage("Assets/SpaceInvader/Spaceship.png", Player.PlayerSprite);
-	// Player.Position = Vector2D{Cast<float>(Width / 2), Cast<float>(Height - 10)};
-	// Player.Speed = 100.0f;
-
 	// Creating new player
 	{
-		for (int i = 0; i < 5; ++i)
-		{
-			const int32 newId = NewId();
-
-			positionArray[newId] = Vector2D{Cast<float>(Width / 2) + 20 * i, Cast<float>(Height - 10)};
-
-			// Constructing our renderable object
-			Renderable renderable;
-			renderable.entityId = newId;
-			renderable.assetId = GetAssetId("Assets/SpaceInvader/Spaceship.png");
-			renderArray[newId] = renderable;
-
-			controllerArray[newId] = PlayerControl{ newId };
-		}
-		// const int32 newId = NewId();
-		//
-		// positionArray[newId] = Vector2D{Cast<float>(Width / 2), Cast<float>(Height - 10)};
-		//
-		// // Constructing our renderable object
-		// Renderable renderable;
-		// renderable.entityId = newId;
-		// renderable.assetId = GetAssetId("Assets/SpaceInvader/Spaceship.png");
-		// renderArray[newId] = renderable;
+		const int32 newId = NewId();
+		transformArray[newId] = Transform{Vector2D{Cast<float>(Width / 2), Cast<float>(Height - 10)}};
+		renderableImagesArray[newId] = Renderable_Image { newId, GetAssetId("Assets/SpaceInvader/Spaceship.png")};
+		playerControlArray[newId] = PlayerControl{ newId };
+		attributesArray[newId] = Attributes {100.f };
+		playerEntityId = newId;
 	}
-
-	Bullet = {};
-	Bullet.Position = Vector2D{-100.f, -100.f};
-	Bullet.Size = Vector2D{1.f, 5.f};
 
 	const int32 invaderCountHorizontal = 10;
 	const int32 invaderCountVertical = 3;
@@ -309,28 +321,10 @@ void Start()
 	}
 }
 
-void CheckFireInput()
-{
-	if (IsKeyDown(SPACEBAR) && Bullet.Velocity == 0.0f) // TODO[rsmekens]: create nearly zero function
-	{
-		Bullet.Position = Player.Position;
-		Bullet.Position.y -= Bullet.Size.y;
-		Bullet.Velocity = -BulletSpeed;
-	}
-}
-
 void Tick(float deltaTime)
 {
 	Clear();
 	RenderGrid();
-
-	//Player.UpdatePlayer(deltaTime);
-	//Player.DrawPlayer();
-
-	Bullet.UpdateBullet(deltaTime);
-	Bullet.DrawBullet();
-	
-	CheckFireInput();
 
 	bool reachedEnd = false;
 	for (Invader* invader : Invaders)
@@ -346,14 +340,14 @@ void Tick(float deltaTime)
 		}
 
 		// TODO[rsmekens]: do bullet vs invader collision checks here
-		SRect invaderRect = invader->GetCollisionRect();
-		SRect bulletRect = Bullet.GetCollisionRect();
-		if (invaderRect.IsRectangleOverlapping(bulletRect))
-		{
-			invader->Alive = false;
-			Bullet.Position = Vector2D{-100.f, -100.f};
-			continue;
-		}
+		// SRect invaderRect = invader->GetCollisionRect();
+		// SRect bulletRect = Bullet.GetCollisionRect();
+		// if (invaderRect.IsRectangleOverlapping(bulletRect))
+		// {
+		// 	invader->Alive = false;
+		// 	Bullet.Position = Vector2D{-100.f, -100.f};
+		// 	continue;
+		// }
 		
 		if (invader->ReachedEnd())
 		{
@@ -384,5 +378,7 @@ void Tick(float deltaTime)
 	}
 
 	controllerManager.Update(deltaTime);
+	bulletManager.Update(deltaTime);
 	renderManager.Update();
+	squareRenderManager.Update();
 }
