@@ -34,6 +34,11 @@ struct Vector2D
     static const Vector2D OneVector;
 };
 
+struct Transform
+{
+    Vector2D Position = Vector2D::ZeroVector;
+    Vector2D Scale = Vector2D::OneVector;
+};
 
 static float GetRandomNormalizedFloat()
 {

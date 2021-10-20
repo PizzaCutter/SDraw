@@ -81,6 +81,17 @@ void SetPixel(int x, int y, Color c)
 	graphics->FillRectangle(&solidBrush, x, y, 1, 1);
 }
 
+void DrawFilledRectangle(Vector2D pos, Vector2D size, Color c)
+{
+	DrawFilledRectangle(static_cast<int32>(std::round(pos.x)), static_cast<int32>(std::round(pos.y)), static_cast<int32>(std::round(size.x)), static_cast<int32>(std::round(size.y)), c);	
+}
+
+void DrawFilledRectangle(int32 x, int32 y, int32 width, int32 height, Color c)
+{
+	Gdiplus::SolidBrush solidBrush(c);
+	graphics->FillRectangle(&solidBrush, x, y, width, height);
+}
+
 void DrawRectangle(Vector2D pos, Vector2D size, Color c)
 {
 	DrawRectangle(static_cast<int32>(std::round(pos.x)), static_cast<int32>(std::round(pos.y)), static_cast<int32>(std::round(size.x)), static_cast<int32>(std::round(size.y)), c);	
@@ -88,8 +99,8 @@ void DrawRectangle(Vector2D pos, Vector2D size, Color c)
 
 void DrawRectangle(int32 x, int32 y, int32 width, int32 height, Color c)
 {
-	Gdiplus::SolidBrush solidBrush(c);
-	graphics->FillRectangle(&solidBrush, x, y, width, height);
+	Gdiplus::Pen solidPen(c);
+	graphics->DrawRectangle(&solidPen, x, y, width, height);
 }
 
 void DrawLine(int32 startX, int32 startY, int32 endX, int32 endY, Color c)
@@ -441,7 +452,7 @@ int32 DrawCharacter(int32 left, int32 top, char charToDraw, Color color, int32 s
 				}
 				else
 				{
-					DrawRectangle(left + (tempX * size), top + (tempY * size), size, size, color);
+					DrawFilledRectangle(left + (tempX * size), top + (tempY * size), size, size, color);
 				}
 			}
 

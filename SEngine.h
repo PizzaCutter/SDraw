@@ -120,6 +120,8 @@ void Clear(Color clearColor = Black);
 void RenderGrid();
 void SetPixel(Vector2D pos, Color c);
 void SetPixel(int32 x, int32 y, Color c);
+void DrawFilledRectangle(Vector2D pos, Vector2D size, Color c);
+void DrawFilledRectangle(int32 x, int32 y, int32 width, int32 height, Color c);
 void DrawRectangle(Vector2D pos, Vector2D size, Color c);
 void DrawRectangle(int32 x, int32 y, int32 width, int32 height, Color c);
 void DrawLine(int32 startX, int32 startY, int32 endX, int32 endY, Color c);

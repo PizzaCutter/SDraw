@@ -75,7 +75,7 @@ struct Paddle
 
     void Draw(float deltaTime)
     {
-        DrawRectangle(position, size, White);
+        DrawFilledRectangle(position, size, White);
     }
 };
 
@@ -140,15 +140,13 @@ struct Ball
     void Draw(float deltaTime)
     {
         Color colorToUse = isOverlapping ? Red : White;
-        DrawRectangle(position, size, colorToUse);
+        DrawFilledRectangle(position, size, colorToUse);
     }
 };
 
 bool isInMenu = true;
 Paddle paddles[2];
 Ball ball;
-
-
 
 void PlayTitleMusic()
 {
@@ -223,7 +221,7 @@ void DrawGridLine()
     float yPos = 0.0f;
     while (yPos <= Height)
     {
-        DrawRectangle(
+        DrawFilledRectangle(
             Vector2D{(Width / 2.f) - gridPointSize / 2.f, yPos },
            Vector2D{gridPointSize, gridPointSize}, White);
         
