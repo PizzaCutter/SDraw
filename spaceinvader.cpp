@@ -7,9 +7,11 @@
 #include <map>
 #include <vector>
 
-static constexpr float INVADER_SPEED = 50.f;
+static constexpr float INVADER_SPEED = 5.f;
 static constexpr float  INVADER_X_OFFSET = 15.f;
 static constexpr float  INVADER_Y_OFFSET = 10.f;
+static constexpr float INVADER_MOVE_STEP_TIME = 0.5f;
+static constexpr float INVADER_SHOOT_CHANCE = 0.1f;
 
 #define ARROW_LEFT 0x25
 #define ARROW_RIGHT 0x27
@@ -23,6 +25,7 @@ static int32 NewAssetId() { return assetIdCounter++; }
 struct Attributes
 {
 	float SPEED;
+	int32 HEALTH;
 };
 
 enum class Direction
@@ -43,7 +46,10 @@ std::map<int32, class Renderable_Square> renderableSquareArray;
 std::map<int32, class CollisionBox> collisionBoxArray;
 
 std::map<int32, class PlayerControl> playerControlArray;
+std::map<int32, bool> bulletArray;
 std::map<int32, bool> playerBulletArray;
+std::map<int32, bool> enemyBulletArray;
+
 std::map<int32, bool> invaderArray;
 
 std::map<int32, SImage> imageAssetArray;
@@ -166,11 +172,12 @@ class CollisionBox
 public:
 	int32 EntityId;
 	Vector2D Scale;
+	Vector2D Offset;
 
 	SRect GetRect() const
 	{
 		const Transform& transform = transformArray[EntityId];
-		return SRect { transform.Position.x, transform.Position.y, Scale.x, Scale.y };	
+		return SRect { transform.Position.x + Offset.x, transform.Position.y + Offset.y, Scale.x, Scale.y };	
 	}
 
 	bool IsColliding(int32 inEntityId) const
@@ -225,18 +232,19 @@ public:
 		for (std::pair<const int32, CollisionBox>& colliders : collisionBoxArray)
 		{
 			const Transform& transform = transformArray[colliders.first];
-			DrawRectangle(transform.Position, colliders.second.Scale, Green);
+			DrawRectangle(Vector2D {transform.Position.x + colliders.second.Offset.x, transform.Position.y + colliders.second.Offset.y }, colliders.second.Scale, Green);
 		}	
 	}
 };
 
-int32 CreateBullet(const Transform& inTransform)
+int32 CreateBullet(const Transform& inTransform, float speed)
 {
 	const int32 entityId = NewId();
 	transformArray[entityId] = Transform{ inTransform.Position, Vector2D {2.0f, 5.0f}};
-	attributesArray[entityId] = Attributes{-100.f};
+	attributesArray[entityId] = Attributes{speed};
 	renderableSquareArray[entityId] = Renderable_Square {entityId, White };
 	collisionBoxArray[entityId] = CollisionBox { entityId, transformArray[entityId].Scale };
+	bulletArray[entityId] = true;
 	return entityId;
 }
 
@@ -246,7 +254,9 @@ void DeleteBullet(int32 entityId)
 	attributesArray.erase(entityId);
 	renderableSquareArray.erase(entityId);
 	collisionBoxArray.erase(entityId);
+	bulletArray.erase(entityId);
 	playerBulletArray.erase(entityId);
+	enemyBulletArray.erase(entityId);
 }
 
 void DeleteSpaceInvader(int32 entityId);
@@ -269,7 +279,7 @@ public:
 		}
 		if (IsKeyDown(SPACEBAR) && playerBulletArray.size() <= 0)
 		{
-			int32 entityId = CreateBullet(transform);
+			int32 entityId = CreateBullet(transform, -100.f);
 			playerBulletArray[entityId] = true;
 		}
 	}
@@ -293,7 +303,7 @@ public:
 	void Update(float deltaTime)
 	{
 		std::vector<int32> bulletsToDelete;
-		for (auto entityId : playerBulletArray)
+		for (auto entityId : bulletArray)
 		{
 			Transform& transform = transformArray[entityId.first];
 			Attributes& attribute = attributesArray[entityId.first];
@@ -303,6 +313,12 @@ public:
 			if (position.y <= 0.f)
 			{
 				bulletsToDelete.push_back(entityId.first);
+				continue;
+			}
+			if (position.y >= Height)
+			{
+				bulletsToDelete.push_back(entityId.first);
+				continue;
 			}
 		}
 
@@ -345,12 +361,27 @@ public:
 	}
 };
 
+
 class InvaderBulletManager
 {
 public:
 	void Update(float deltaTime)
 	{
-		
+		std::vector<int32> bulletToDelete;
+
+		for (auto bulletEntityId : enemyBulletArray)
+		{
+			const CollisionBox& playerCollider = collisionBoxArray[playerEntityId];
+			if (playerCollider.IsColliding(bulletEntityId.first))
+			{
+				bulletToDelete.push_back(bulletEntityId.first);		
+			}
+		}
+
+		for (int32 bulletEntityId : bulletToDelete)
+		{
+			DeleteBullet(bulletEntityId);
+		}
 	}
 };
 
@@ -358,55 +389,87 @@ class InvaderManager
 {
 public:
 	Direction movementDirection = Direction::Right;
+	float timer = 0.0f;
 	
 	void Update(float deltaTime)
 	{
-		// Update space invader positions
-		for (auto entityId : invaderArray)
-		{
-			Transform& transform = transformArray[entityId.first];
+		UpdateMovement();
+		
+		timer += deltaTime;
+		
+		const float normalizedRandom = (Cast<float>(std::rand()) / Cast<float>(RAND_MAX)) * 100.f;
+		int32 invaderIndexToShoot = (std::rand() / (RAND_MAX / (invaderArray.size() - 1)));
+		invaderIndexToShoot = normalizedRandom < INVADER_SHOOT_CHANCE ? invaderIndexToShoot : -1;
 
-			if (movementDirection == Direction::Left)
+		if (invaderIndexToShoot != -1)
+		{
+			std::vector<int> keys;
+			for (auto invader : invaderArray)
 			{
-				transform.Position.x -= INVADER_SPEED * deltaTime;	
-			}else if (movementDirection == Direction::Right)
-			{
-				transform.Position.x += INVADER_SPEED * deltaTime;
+				keys.push_back(invader.first);	
 			}
-		}
 
-		Direction prevMovementDirection = movementDirection;
-		// Check if we should start moving to the other side of the screen
-		for (auto entityId : invaderArray)
-		{
-			Transform& transform = transformArray[entityId.first];
-			const Renderable_Sprite& sprite = renderableSpriteArray[entityId.first]; 
-			
-			if (movementDirection == Direction::Right)
-			{
-				if (transform.Position.x >= Width - sprite.SpriteCellSize.x)
-				{
-					movementDirection = Direction::Left;
-					break;
-				}
-			}else if (movementDirection == Direction::Left)
-			{
-				if (transform.Position.x <= 0)
-				{
-					movementDirection = Direction::Right;
-					break;
-				}
-			}	
+			const int32 invaderEntityId = keys[invaderIndexToShoot];
+			const Transform& transform = transformArray[invaderEntityId];
+			const int32 bulletEntityId = CreateBullet(transform, 100.f);
+			enemyBulletArray[bulletEntityId] = true;	
 		}
+	}
 
-		// Move all space invaders down
-		if (prevMovementDirection != movementDirection)
+	void UpdateMovement()
+	{
+		while(timer >= INVADER_MOVE_STEP_TIME)
 		{
+			// Update space invader positions
 			for (auto entityId : invaderArray)
 			{
 				Transform& transform = transformArray[entityId.first];
-				transform.Position.y += 15.f; 
+
+				if (movementDirection == Direction::Left)
+				{
+					transform.Position.x -= INVADER_SPEED;
+				}
+				else if (movementDirection == Direction::Right)
+				{
+					transform.Position.x += INVADER_SPEED;
+				}
 			}
+
+			Direction prevMovementDirection = movementDirection;
+			// Check if we should start moving to the other side of the screen
+			for (auto entityId : invaderArray)
+			{
+				Transform& transform = transformArray[entityId.first];
+				const Renderable_Sprite& sprite = renderableSpriteArray[entityId.first];
+
+				if (movementDirection == Direction::Right)
+				{
+					if (transform.Position.x >= Width - sprite.SpriteCellSize.x)
+					{
+						movementDirection = Direction::Left;
+						break;
+					}
+				}
+				else if (movementDirection == Direction::Left)
+				{
+					if (transform.Position.x <= 0)
+					{
+						movementDirection = Direction::Right;
+						break;
+					}
+				}
+			}
+
+			// Move all space invaders down
+			if (prevMovementDirection != movementDirection)
+			{
+				for (auto entityId : invaderArray)
+				{
+					Transform& transform = transformArray[entityId.first];
+					transform.Position.y += 15.f;
+				}
+			}
+			timer -= INVADER_MOVE_STEP_TIME;
 		}
 	}
 };
@@ -419,6 +482,7 @@ ControllerManager controllerManager;
 BulletManager bulletManager;
 InvaderManager invaderManager;
 PlayerBulletManager playerBulletManager;
+InvaderBulletManager invaderBulletManager;
 
 CollisionRenderManager debugCollisionRenderManager;
 
@@ -445,13 +509,22 @@ void DeleteSpaceInvader(int32 entityId)
 
 void Start()
 {
+	srand (static_cast <unsigned> (time(0)));
+	
 	// Creating new player
 	{
 		const int32 newId = NewId();
 		transformArray[newId] = Transform{Vector2D{Cast<float>(Width / 2), Cast<float>(Height - 10)}};
-		renderableImagesArray[newId] = Renderable_Image { newId, GetAssetId("Assets/SpaceInvader/Spaceship.png")};
+		const Vector2D& scale = transformArray[newId].Scale;
+		const int32 assetId =GetAssetId("Assets/SpaceInvader/Spaceship.png");
+		renderableImagesArray[newId] = Renderable_Image { newId, assetId};
+		const SImage& image = imageAssetArray[assetId];
 		playerControlArray[newId] = PlayerControl{ newId };
 		attributesArray[newId] = Attributes {100.f };
+		
+		Vector2D collisionScale { image.width * transformArray[newId].Scale.x, image.height * transformArray[newId].Scale.y * 0.5f };
+		Vector2D offset {-image.width * 0.5f, 0.f };
+		collisionBoxArray[newId] = CollisionBox { newId, collisionScale, offset };
 		playerEntityId = newId;
 	}
 
@@ -478,6 +551,7 @@ void Tick(float deltaTime)
 	invaderManager.Update(deltaTime);
 	bulletManager.Update(deltaTime);
 	playerBulletManager.Update(deltaTime);
+	invaderBulletManager.Update(deltaTime);
 	
 	renderManager.Update(deltaTime);
 	spriteRenderManager.Update(deltaTime);
