@@ -16,6 +16,7 @@ static constexpr float INVADER_SHOOT_CHANCE = 0.1f;
 #define ARROW_LEFT 0x25
 #define ARROW_RIGHT 0x27
 #define SPACEBAR 0x20
+#define RETURN 0x0D
 
 static int32 idCounter = 0;
 static int32 NewId() { return idCounter++; }
@@ -56,6 +57,7 @@ std::map<int32, SImage> imageAssetArray;
 
 int32 playerEntityId;
 int32 playerScore = 0;
+bool isInMenu = true;
 
 int32 GetAssetId(const std::string& assetPath)
 {
@@ -264,6 +266,11 @@ void RemovePlayerHealth()
 {
 	Attributes& attribute = attributesArray[playerEntityId];
 	attribute.HEALTH = std::clamp(attribute.HEALTH - 1, 0, attribute.HEALTH);
+
+	if (attribute.HEALTH <= 0)
+	{
+		isInMenu = true;		
+	}
 }
 
 void DeleteSpaceInvader(int32 entityId);
@@ -519,6 +526,21 @@ void DeleteSpaceInvader(int32 entityId)
 void Start()
 {
 	srand (static_cast <unsigned> (time(0)));
+
+	transformArray.clear();
+	attributesArray.clear();
+	renderableImagesArray.clear();
+	renderableSpriteArray.clear();
+	renderableSquareArray.clear();
+	collisionBoxArray.clear();
+	playerControlArray.clear();
+	bulletArray.clear();
+	playerBulletArray.clear();
+	enemyBulletArray.clear();
+	invaderArray.clear();
+	imageAssetArray.clear();
+
+	playerScore = 0;
 	
 	// Creating new player
 	{
@@ -551,7 +573,8 @@ void Start()
 	}
 }
 
-void RenderUI()
+
+void RenderGameUI()
 {
 	Attributes& attributes = attributesArray[playerEntityId];
 	const std::string score = "SCORE " + std::to_string(playerScore);
@@ -560,11 +583,31 @@ void RenderUI()
 	DrawString(Vector2D{GetHalfWidth(), 5.f }, lives, Alignment::Left, White, 2);	
 }
 
-void Tick(float deltaTime)
+void MainMenu(float deltaTime)
 {
-	Clear();
-	RenderGrid();
+	const std::string gameTitle = "SPACE INVADER";
+	{
+		const int32 xPos = GetHalfWidth();
+		const int32 yPos = static_cast<int32>(GetHalfHeight() - 50.f);
+		DrawString(xPos, yPos, gameTitle, Center, White, 4);
+	}
 
+	const std::string other = "ENTER TO START";
+	{
+		const int32 xPos = GetHalfWidth(); 
+		const int32 yPos = static_cast<int32>(GetHalfHeight());
+		DrawString(xPos, yPos, other, Center, White, 2);
+	}
+
+	if (IsKeyDown(RETURN))
+	{
+		Start();
+		isInMenu = false;	
+	}
+}
+
+void GameTick(float deltaTime)
+{
 	controllerManager.Update(deltaTime);
 	invaderManager.Update(deltaTime);
 	bulletManager.Update(deltaTime);
@@ -576,6 +619,20 @@ void Tick(float deltaTime)
 	squareRenderManager.Update(deltaTime);
 
 	debugCollisionRenderManager.Update(deltaTime);
+	
+	RenderGameUI();
+}
 
-	RenderUI();
+void Tick(float deltaTime)
+{
+	Clear();
+	RenderGrid();
+
+	if (isInMenu)
+	{
+		MainMenu(deltaTime);
+	}else
+	{
+		GameTick(deltaTime);
+	}
 }
