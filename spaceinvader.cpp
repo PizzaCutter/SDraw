@@ -55,6 +55,7 @@ std::map<int32, bool> invaderArray;
 std::map<int32, SImage> imageAssetArray;
 
 int32 playerEntityId;
+int32 playerScore = 0;
 
 int32 GetAssetId(const std::string& assetPath)
 {
@@ -259,6 +260,12 @@ void DeleteBullet(int32 entityId)
 	enemyBulletArray.erase(entityId);
 }
 
+void RemovePlayerHealth()
+{
+	Attributes& attribute = attributesArray[playerEntityId];
+	attribute.HEALTH = std::clamp(attribute.HEALTH - 1, 0, attribute.HEALTH);
+}
+
 void DeleteSpaceInvader(int32 entityId);
 
 class PlayerControl
@@ -356,7 +363,8 @@ public:
 		}
 		if (invaderToDelete != -1)
 		{
-			DeleteSpaceInvader(invaderToDelete);	
+			DeleteSpaceInvader(invaderToDelete);
+			playerScore += 25;
 		}
 	}
 };
@@ -381,6 +389,7 @@ public:
 		for (int32 bulletEntityId : bulletToDelete)
 		{
 			DeleteBullet(bulletEntityId);
+			RemovePlayerHealth();
 		}
 	}
 };
@@ -520,7 +529,7 @@ void Start()
 		renderableImagesArray[newId] = Renderable_Image { newId, assetId};
 		const SImage& image = imageAssetArray[assetId];
 		playerControlArray[newId] = PlayerControl{ newId };
-		attributesArray[newId] = Attributes {100.f };
+		attributesArray[newId] = Attributes {100.f, 3 };
 		
 		Vector2D collisionScale { image.width * transformArray[newId].Scale.x, image.height * transformArray[newId].Scale.y * 0.5f };
 		Vector2D offset {-image.width * 0.5f, 0.f };
@@ -536,10 +545,19 @@ void Start()
 		for (int y = 0; y < invaderCountVertical; ++y)
 		{
 			const float xPos = x * INVADER_X_OFFSET;
-			const float yPos = y * INVADER_Y_OFFSET;
+			const float yPos = y * INVADER_Y_OFFSET + 25.f;
 			CreateSpaceInvader(Vector2D{xPos, yPos});	
 		}
 	}
+}
+
+void RenderUI()
+{
+	Attributes& attributes = attributesArray[playerEntityId];
+	const std::string score = "SCORE " + std::to_string(playerScore);
+	DrawString(Vector2D{5.f, 5.f }, score, Alignment::Left, White, 2);
+	const std::string lives = "LIVES " + std::to_string(attributes.HEALTH); 
+	DrawString(Vector2D{GetHalfWidth(), 5.f }, lives, Alignment::Left, White, 2);	
 }
 
 void Tick(float deltaTime)
@@ -558,4 +576,6 @@ void Tick(float deltaTime)
 	squareRenderManager.Update(deltaTime);
 
 	debugCollisionRenderManager.Update(deltaTime);
+
+	RenderUI();
 }
