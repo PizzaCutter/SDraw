@@ -30,6 +30,11 @@ struct Vector2D
         y /= size;
     }
 
+    Vector2D operator+ (const Vector2D& rhs) const
+    {
+        return Vector2D {x + rhs.x, y + rhs.y };
+    }
+
     static const Vector2D ZeroVector;
     static const Vector2D OneVector;
 };

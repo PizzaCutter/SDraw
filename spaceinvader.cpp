@@ -52,6 +52,7 @@ std::map<int32, bool> playerBulletArray;
 std::map<int32, bool> enemyBulletArray;
 
 std::map<int32, bool> invaderArray;
+std::map<int32, bool> obstacleArray;
 
 std::map<int32, SImage> imageAssetArray;
 
@@ -109,6 +110,7 @@ public:
 	Vector2D SpriteCellSize;
 
 	float timePerFrame = 0.5f;
+	bool update = true;
 
 	Renderable_Sprite() = default;
 	Renderable_Sprite(int32 inEntityId, int32 inAssetId, int32 inCellCountX, int32 inCellCountY = 1) 
@@ -138,6 +140,11 @@ public:
 
 	void UpdateSprite(float deltaTime)
 	{
+		if (update == false)
+		{
+			return;
+		}
+		
 		internalTimer += deltaTime;
 
 		while(internalTimer >= timePerFrame)
@@ -146,6 +153,11 @@ public:
 			index %= cellCountX;
 			internalTimer -= timePerFrame;
 		}
+	}
+
+	void IncrementCellCountX()
+	{
+		index++; 
 	}
 
 private:
@@ -348,7 +360,7 @@ class PlayerBulletManager
 public:
 	void Update(float deltaTime)
 	{
-		int32 bulletToDelete = -1;
+		std::vector<int32> bulletsToDelete;
 		int32 invaderToDelete = -1;
 		
 		for (auto bulletEntityId : playerBulletArray)
@@ -358,16 +370,37 @@ public:
 			{
 				if (bulletCollider.IsColliding(invaderEntityId.first))
 				{
-					bulletToDelete = bulletEntityId.first;
+					bulletsToDelete.push_back(bulletEntityId.first);
 					invaderToDelete = invaderEntityId.first;
 				}
 			}
 		}
 
-		if (bulletToDelete != -1)
+		for (auto bulletEntityId : playerBulletArray)
 		{
-			DeleteBullet(bulletToDelete);
+			const CollisionBox& bulletCollider = collisionBoxArray[bulletEntityId.first];
+			for (auto obstacleEntityId : obstacleArray)
+			{
+				Attributes& attribute = attributesArray[obstacleEntityId.first];
+				if(attribute.HEALTH <= 0)
+				{
+					continue;
+				}
+				if (bulletCollider.IsColliding(obstacleEntityId.first))
+				{
+					attribute.HEALTH--;
+					renderableSpriteArray[obstacleEntityId.first].IncrementCellCountX();
+
+					bulletsToDelete.push_back(bulletEntityId.first);
+				}
+			}
 		}
+
+		for (const int32& bullets_to_delete : bulletsToDelete)
+		{
+			DeleteBullet(bullets_to_delete);
+		}
+		
 		if (invaderToDelete != -1)
 		{
 			DeleteSpaceInvader(invaderToDelete);
@@ -386,17 +419,37 @@ public:
 
 		for (auto bulletEntityId : enemyBulletArray)
 		{
+			const CollisionBox& bulletCollider = collisionBoxArray[bulletEntityId.first];
+			for (auto obstacleEntityId : obstacleArray)
+			{
+				Attributes& attribute = attributesArray[obstacleEntityId.first];
+				if(attribute.HEALTH <= 0)
+				{
+					continue;
+				}
+				if (bulletCollider.IsColliding(obstacleEntityId.first))
+				{
+					attribute.HEALTH--;
+					renderableSpriteArray[obstacleEntityId.first].IncrementCellCountX();
+					
+					bulletToDelete.push_back(bulletEntityId.first);		
+				}
+			}
+		}
+
+		for (auto bulletEntityId : enemyBulletArray)
+		{
 			const CollisionBox& playerCollider = collisionBoxArray[playerEntityId];
 			if (playerCollider.IsColliding(bulletEntityId.first))
 			{
-				bulletToDelete.push_back(bulletEntityId.first);		
+				RemovePlayerHealth();
+				bulletToDelete.push_back(bulletEntityId.first);
 			}
 		}
 
 		for (int32 bulletEntityId : bulletToDelete)
 		{
 			DeleteBullet(bulletEntityId);
-			RemovePlayerHealth();
 		}
 	}
 };
@@ -523,6 +576,32 @@ void DeleteSpaceInvader(int32 entityId)
 	invaderArray.erase(entityId);
 }
 
+void CreateObstacle(const Vector2D& pos)
+{
+	const int32 newId = NewId();
+	transformArray[newId] = Transform { pos, Vector2D{ 0.25f, 0.25f } };
+	attributesArray[newId] = Attributes { 0.f, 4 };
+	const int32 assetId = GetAssetId("Assets/SpaceInvader/Obstacle_01.png");
+	Renderable_Sprite sprite = Renderable_Sprite { newId, assetId, 4, 1};
+	sprite.update = false;
+	renderableSpriteArray[newId] = sprite;
+	collisionBoxArray[newId] = CollisionBox { newId,  { sprite.SpriteCellSize.x * transformArray[newId].Scale.x , sprite.SpriteCellSize.y * transformArray[newId].Scale.y } };
+	obstacleArray[newId] = true;	
+}
+
+void CreateObstacleCluster(const Vector2D& pos)
+{
+	CreateObstacle(pos);
+	CreateObstacle(pos + Vector2D {8.f, 0.f});
+	CreateObstacle(pos + Vector2D {16.f, 0.f});
+
+	CreateObstacle(pos + Vector2D {0.f, 8.f});
+	CreateObstacle(pos + Vector2D {16.f, 8.f});
+
+	CreateObstacle(pos + Vector2D {0.f, 16.f});
+	CreateObstacle(pos + Vector2D {16.f, 16.f});
+}
+
 void Start()
 {
 	srand (static_cast <unsigned> (time(0)));
@@ -559,6 +638,15 @@ void Start()
 		playerEntityId = newId;
 	}
 
+	// Create obstacle
+	{
+		float yPos = GetHalfHeight() + GetHalfHeight() * 0.5f;
+		CreateObstacleCluster(Vector2D { 50.f, yPos });
+		CreateObstacleCluster(Vector2D { 125.f, yPos });
+		CreateObstacleCluster(Vector2D { 200.f, yPos });
+		CreateObstacleCluster(Vector2D { 275.f, yPos });
+	}
+
 	// Creating lot's of space invaders :) 
 	const int32 invaderCountHorizontal = 10;
 	const int32 invaderCountVertical = 3;
@@ -568,7 +656,7 @@ void Start()
 		{
 			const float xPos = x * INVADER_X_OFFSET;
 			const float yPos = y * INVADER_Y_OFFSET + 25.f;
-			CreateSpaceInvader(Vector2D{xPos, yPos});	
+			CreateSpaceInvader(Vector2D{xPos, yPos});
 		}
 	}
 }
@@ -618,7 +706,7 @@ void GameTick(float deltaTime)
 	spriteRenderManager.Update(deltaTime);
 	squareRenderManager.Update(deltaTime);
 
-	debugCollisionRenderManager.Update(deltaTime);
+	//debugCollisionRenderManager.Update(deltaTime);
 	
 	RenderGameUI();
 }
@@ -626,7 +714,6 @@ void GameTick(float deltaTime)
 void Tick(float deltaTime)
 {
 	Clear();
-	RenderGrid();
 
 	if (isInMenu)
 	{
